@@ -7,16 +7,52 @@ class BanglishInputController: IMKInputController {
     private let engine = BanglishEngine.shared
     private static let emptyRange = NSRange(location: NSNotFound, length: NSNotFound)
     public static var isBanglaMode = true
+    private weak var lastClient: (any IMKTextInput)?
 
     override init!(server: IMKServer!, delegate: Any!, client: Any!) {
         super.init(server: server, delegate: delegate, client: client)
+        if let c = client as? (any IMKTextInput) {
+            self.lastClient = c
+        }
     }
 
-    // MARK: - Native Event Handling
+    private func currentClient(sender: Any? = nil) -> (any IMKTextInput)? {
+        if let client = sender as? (any IMKTextInput) {
+            lastClient = client
+            return client
+        }
+        if let client = self.client() as? (any IMKTextInput) {
+            lastClient = client
+            return client
+        }
+        return lastClient
+    }
+
+    // MARK: - Server Lifecycle
+    override func activateServer(_ sender: Any!) {
+        super.activateServer(sender)
+        _ = currentClient(sender: sender)
+        buffer.removeAll()
+    }
+
+    override func deactivateServer(_ sender: Any!) {
+        if let client = currentClient(sender: sender), !buffer.isEmpty {
+            commitBuffer(client: client)
+        }
+        super.deactivateServer(sender)
+    }
+
+    override func commitComposition(_ sender: Any!) {
+        if let client = currentClient(sender: sender), !buffer.isEmpty {
+            commitBuffer(client: client)
+        }
+    }
+
+    // MARK: - Native Event Handling (Raw NSEvents)
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
         guard let event = event,
               event.type == .keyDown,
-              let client = sender as? (any IMKTextInput) else {
+              let client = currentClient(sender: sender) else {
             return false
         }
 
@@ -41,7 +77,7 @@ class BanglishInputController: IMKInputController {
             return false
         }
 
-        // Space (keycode 49): commit converted word, then let space pass through to app
+        // Space (keycode 49): commit converted word, let space pass through
         if keyCode == 49 {
             if !buffer.isEmpty {
                 commitBuffer(client: client)
@@ -112,6 +148,69 @@ class BanglishInputController: IMKInputController {
         return true
     }
 
+    // MARK: - Text Data Handling (for AppKit NSTextView clients like Notes, TextEdit, Pages)
+    override func inputText(_ string: String!, client sender: Any!) -> Bool {
+        guard let string = string, let client = currentClient(sender: sender) else {
+            return false
+        }
+        if !BanglishInputController.isBanglaMode {
+            return false
+        }
+
+        for char in string {
+            if char == " " {
+                if !buffer.isEmpty { commitBuffer(client: client) }
+                client.insertText(" " as NSString, replacementRange: Self.emptyRange)
+            } else if char == "." {
+                if !buffer.isEmpty {
+                    let converted = engine.transliterate(buffer)
+                    client.insertText((converted + "।") as NSString, replacementRange: Self.emptyRange)
+                    buffer.removeAll()
+                } else {
+                    client.insertText("।" as NSString, replacementRange: Self.emptyRange)
+                }
+            } else if char.isASCII && !char.isNewline {
+                buffer.append(char)
+                updateMarkedText(client: client)
+            } else {
+                if !buffer.isEmpty { commitBuffer(client: client) }
+                client.insertText(String(char) as NSString, replacementRange: Self.emptyRange)
+            }
+        }
+        return true
+    }
+
+    override func inputText(_ string: String!, key keyCode: Int, modifiers flags: Int, client sender: Any!) -> Bool {
+        guard let client = currentClient(sender: sender) else { return false }
+        if !BanglishInputController.isBanglaMode { return false }
+
+        let modifierFlags = NSEvent.ModifierFlags(rawValue: UInt(flags))
+        if modifierFlags.contains(.command) || modifierFlags.contains(.control) {
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            return false
+        }
+
+        if keyCode == 49 { // Space
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            return false
+        }
+        if keyCode == 36 || keyCode == 76 { // Return
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            return false
+        }
+        if keyCode == 51 { // Backspace
+            if !buffer.isEmpty {
+                buffer.removeLast()
+                updateMarkedText(client: client)
+                return true
+            }
+            return false
+        }
+
+        return inputText(string, client: sender)
+    }
+
+    // MARK: - Marked Text & Buffer Management
     private func updateMarkedText(client: any IMKTextInput) {
         if buffer.isEmpty {
             clearMarkedText(client: client)
@@ -123,7 +222,7 @@ class BanglishInputController: IMKInputController {
             string: converted,
             attributes: [
                 .underlineStyle: NSUnderlineStyle.single.rawValue,
-                .markedClauseSegment: 0
+                .font: NSFont.systemFont(ofSize: NSFont.systemFontSize)
             ]
         )
 
@@ -149,11 +248,7 @@ class BanglishInputController: IMKInputController {
         buffer.removeAll()
     }
 
-    override func commitComposition(_ sender: Any!) {
-        guard let client = sender as? (any IMKTextInput) else { return }
-        commitBuffer(client: client)
-    }
-
+    // MARK: - Menu Bar
     override func menu() -> NSMenu! {
         let menu = NSMenu()
         let item1 = NSMenuItem(title: "🇧🇩 Banglish 1.0", action: nil, keyEquivalent: "")
