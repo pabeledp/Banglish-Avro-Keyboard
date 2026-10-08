@@ -1,0 +1,6 @@
+.DS_Store
+build/
+pkg_build/
+tester/
+test_bundle/
+*.log

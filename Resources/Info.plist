@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleExecutable</key>
+    <string>Banglish</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIdentifier</key>
+    <string>org.banglish.inputmethod.Banglish</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Banglish</string>
+    <key>CFBundleDisplayName</key>
+    <string>Banglish</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>12.0</string>
+    <key>LSUIElement</key>
+    <false/>
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+    <key>TISIntendedLanguage</key>
+    <string>bn</string>
+    <key>InputMethodConnectionName</key>
+    <string>Banglish_Connection</string>
+    <key>InputMethodServerControllerClass</key>
+    <string>BanglishInputController</string>
+    <key>tsInputMethodIconFileKey</key>
+    <string>icon16.png</string>
+    <key>tsInputMethodCharacterRepertoireKey</key>
+    <array>
+        <string>Beng</string>
+    </array>
+</dict>
+</plist>

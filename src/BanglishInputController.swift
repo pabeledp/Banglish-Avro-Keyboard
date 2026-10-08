@@ -1,0 +1,195 @@
+import Cocoa
+import InputMethodKit
+
+@objc(BanglishInputController)
+class BanglishInputController: IMKInputController {
+    private var buffer = ""
+    private let engine = BanglishEngine.shared
+    private static let emptyRange = NSRange(location: NSNotFound, length: NSNotFound)
+    public static var isBanglaMode = true
+
+    override init!(server: IMKServer!, delegate: Any!, client: Any!) {
+        super.init(server: server, delegate: delegate, client: client)
+    }
+
+    // MARK: - Native Event Handling
+    override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
+        guard let event = event,
+              event.type == .keyDown,
+              let client = sender as? (any IMKTextInput) else {
+            return false
+        }
+
+        let modifiers = event.modifierFlags
+        let keyCode = event.keyCode
+        let char = event.characters?.first
+
+        // Hotkey: Option + Space toggles Bangla/English
+        if modifiers.contains(.option) && keyCode == 49 {
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            BanglishInputController.isBanglaMode.toggle()
+            return true
+        }
+
+        if !BanglishInputController.isBanglaMode {
+            return false
+        }
+
+        // Pass through events with Cmd or Ctrl
+        if modifiers.contains(.command) || modifiers.contains(.control) {
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            return false
+        }
+
+        // Space (keycode 49): commit converted word, then let space pass through to app
+        if keyCode == 49 {
+            if !buffer.isEmpty {
+                commitBuffer(client: client)
+            }
+            return false
+        }
+
+        // Return (keycode 36 or 76): commit word, let newline pass through
+        if keyCode == 36 || keyCode == 76 {
+            if !buffer.isEmpty {
+                commitBuffer(client: client)
+            }
+            return false
+        }
+
+        // Backspace (keycode 51)
+        if keyCode == 51 {
+            if !buffer.isEmpty {
+                buffer.removeLast()
+                updateMarkedText(client: client)
+                return true
+            }
+            return false
+        }
+
+        // Escape (keycode 53)
+        if keyCode == 53 {
+            if !buffer.isEmpty {
+                buffer.removeAll()
+                clearMarkedText(client: client)
+                return true
+            }
+            return false
+        }
+
+        // Tab (keycode 48)
+        if keyCode == 48 {
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            return false
+        }
+
+        // Arrows (123...126)
+        if (123...126).contains(keyCode) {
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            return false
+        }
+
+        // Full stop / Daari (.)
+        if char == "." {
+            if !buffer.isEmpty {
+                let converted = engine.transliterate(buffer)
+                client.insertText((converted + "।") as NSString, replacementRange: Self.emptyRange)
+                buffer.removeAll()
+                return true
+            } else {
+                client.insertText("।" as NSString, replacementRange: Self.emptyRange)
+                return true
+            }
+        }
+
+        // Regular printable ASCII characters
+        guard let char = char, char.isASCII && !char.isNewline && char != " " else {
+            return false
+        }
+
+        buffer.append(char)
+        updateMarkedText(client: client)
+        return true
+    }
+
+    private func updateMarkedText(client: any IMKTextInput) {
+        if buffer.isEmpty {
+            clearMarkedText(client: client)
+            return
+        }
+
+        let converted = engine.transliterate(buffer)
+        let attrString = NSMutableAttributedString(
+            string: converted,
+            attributes: [
+                .underlineStyle: NSUnderlineStyle.single.rawValue,
+                .markedClauseSegment: 0
+            ]
+        )
+
+        client.setMarkedText(
+            attrString,
+            selectionRange: NSRange(location: converted.utf16.count, length: 0),
+            replacementRange: Self.emptyRange
+        )
+    }
+
+    private func clearMarkedText(client: any IMKTextInput) {
+        client.setMarkedText(
+            "" as NSString,
+            selectionRange: NSRange(location: 0, length: 0),
+            replacementRange: Self.emptyRange
+        )
+    }
+
+    private func commitBuffer(client: any IMKTextInput) {
+        guard !buffer.isEmpty else { return }
+        let converted = engine.transliterate(buffer)
+        client.insertText(converted as NSString, replacementRange: Self.emptyRange)
+        buffer.removeAll()
+    }
+
+    override func commitComposition(_ sender: Any!) {
+        guard let client = sender as? (any IMKTextInput) else { return }
+        commitBuffer(client: client)
+    }
+
+    override func menu() -> NSMenu! {
+        let menu = NSMenu()
+        let item1 = NSMenuItem(title: "🇧🇩 Banglish 1.0", action: nil, keyEquivalent: "")
+        item1.isEnabled = false
+        menu.addItem(item1)
+        menu.addItem(NSMenuItem.separator())
+
+        let toggle = NSMenuItem(title: BanglishInputController.isBanglaMode ? "Switch to English (⌥ + Space)" : "Switch to Bangla (⌥ + Space)", action: #selector(toggleModeMenu), keyEquivalent: "")
+        toggle.target = self
+        menu.addItem(toggle)
+
+        menu.addItem(NSMenuItem.separator())
+        let openSettings = NSMenuItem(title: "Open Banglish Dashboard...", action: #selector(openDashboard), keyEquivalent: "")
+        openSettings.target = self
+        menu.addItem(openSettings)
+
+        let openMacSettings = NSMenuItem(title: "Open macOS Keyboard Settings...", action: #selector(openMacSettings), keyEquivalent: "")
+        openMacSettings.target = self
+        menu.addItem(openMacSettings)
+
+        return menu
+    }
+
+    @objc func toggleModeMenu() {
+        BanglishInputController.isBanglaMode.toggle()
+    }
+
+    @objc func openDashboard() {
+        if let appDelegate = NSApplication.shared.delegate as? BanglishAppCoordinator {
+            appDelegate.showMainWindow()
+        }
+    }
+
+    @objc func openMacSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+}
