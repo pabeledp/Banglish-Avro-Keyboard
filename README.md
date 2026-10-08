@@ -7,11 +7,7 @@
   
   <p>
     <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/Banglish_Installer.dmg">
-      <img src="https://img.shields.io/badge/Download-Banglish__Installer.dmg-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download DMG">
-    </a>
-    &nbsp;
-    <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/Banglish_Installer.pkg">
-      <img src="https://img.shields.io/badge/Download-Install__Banglish.pkg-ffffff?style=for-the-badge&logo=apple&logoColor=000000&labelColor=000000" alt="Download PKG">
+      <img src="https://img.shields.io/badge/Download%20for%20macOS-Banglish__Installer.dmg-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish for macOS">
     </a>
   </p>
 
@@ -52,7 +48,7 @@ To ensure that Mac users continue to enjoy a seamless, future-proof Bengali typi
 ## Installation
 
 ### Step 1: Install
-Download and run either **`Banglish_Installer.dmg`** or **`Banglish_Installer.pkg`**.
+Download and open **`Banglish_Installer.dmg`**, then double-click the installer.
 
 ### Step 2: Log Out and Log Back In *(Required)*
 Log out of your macOS account and log back in (or restart your Mac).  
