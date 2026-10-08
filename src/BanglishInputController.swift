@@ -5,7 +5,7 @@ import InputMethodKit
 class BanglishInputController: IMKInputController {
     private var buffer = ""
     private let engine = BanglishEngine.shared
-    private static let emptyRange = NSRange(location: NSNotFound, length: NSNotFound)
+    private static let emptyRange = NSRange(location: NSNotFound, length: 0)
     public static var isBanglaMode = true
     private weak var lastClient: (any IMKTextInput)?
 
@@ -29,6 +29,10 @@ class BanglishInputController: IMKInputController {
     }
 
     // MARK: - Server Lifecycle
+    override func recognizedEvents(_ sender: Any!) -> Int {
+        return Int(NSEvent.EventTypeMask.keyDown.rawValue)
+    }
+
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
         _ = currentClient(sender: sender)
@@ -58,7 +62,7 @@ class BanglishInputController: IMKInputController {
 
         let modifiers = event.modifierFlags
         let keyCode = event.keyCode
-        let char = event.characters?.first
+        let char = event.characters?.first ?? event.charactersIgnoringModifiers?.first
 
         // Hotkey: Option + Space toggles Bangla/English
         if modifiers.contains(.option) && keyCode == 49 {
@@ -148,68 +152,6 @@ class BanglishInputController: IMKInputController {
         return true
     }
 
-    // MARK: - Text Data Handling (for AppKit NSTextView clients like Notes, TextEdit, Pages)
-    override func inputText(_ string: String!, client sender: Any!) -> Bool {
-        guard let string = string, let client = currentClient(sender: sender) else {
-            return false
-        }
-        if !BanglishInputController.isBanglaMode {
-            return false
-        }
-
-        for char in string {
-            if char == " " {
-                if !buffer.isEmpty { commitBuffer(client: client) }
-                client.insertText(" " as NSString, replacementRange: Self.emptyRange)
-            } else if char == "." {
-                if !buffer.isEmpty {
-                    let converted = engine.transliterate(buffer)
-                    client.insertText((converted + "।") as NSString, replacementRange: Self.emptyRange)
-                    buffer.removeAll()
-                } else {
-                    client.insertText("।" as NSString, replacementRange: Self.emptyRange)
-                }
-            } else if char.isASCII && !char.isNewline {
-                buffer.append(char)
-                updateMarkedText(client: client)
-            } else {
-                if !buffer.isEmpty { commitBuffer(client: client) }
-                client.insertText(String(char) as NSString, replacementRange: Self.emptyRange)
-            }
-        }
-        return true
-    }
-
-    override func inputText(_ string: String!, key keyCode: Int, modifiers flags: Int, client sender: Any!) -> Bool {
-        guard let client = currentClient(sender: sender) else { return false }
-        if !BanglishInputController.isBanglaMode { return false }
-
-        let modifierFlags = NSEvent.ModifierFlags(rawValue: UInt(flags))
-        if modifierFlags.contains(.command) || modifierFlags.contains(.control) {
-            if !buffer.isEmpty { commitBuffer(client: client) }
-            return false
-        }
-
-        if keyCode == 49 { // Space
-            if !buffer.isEmpty { commitBuffer(client: client) }
-            return false
-        }
-        if keyCode == 36 || keyCode == 76 { // Return
-            if !buffer.isEmpty { commitBuffer(client: client) }
-            return false
-        }
-        if keyCode == 51 { // Backspace
-            if !buffer.isEmpty {
-                buffer.removeLast()
-                updateMarkedText(client: client)
-                return true
-            }
-            return false
-        }
-
-        return inputText(string, client: sender)
-    }
-
     // MARK: - Marked Text & Buffer Management
     private func updateMarkedText(client: any IMKTextInput) {
         if buffer.isEmpty {
@@ -234,17 +176,21 @@ class BanglishInputController: IMKInputController {
     }
 
     private func clearMarkedText(client: any IMKTextInput) {
+        let marked = client.markedRange()
+        let replaceRange = (marked.location != NSNotFound && marked.length > 0) ? marked : Self.emptyRange
         client.setMarkedText(
             "" as NSString,
             selectionRange: NSRange(location: 0, length: 0),
-            replacementRange: Self.emptyRange
+            replacementRange: replaceRange
         )
     }
 
     private func commitBuffer(client: any IMKTextInput) {
         guard !buffer.isEmpty else { return }
         let converted = engine.transliterate(buffer)
-        client.insertText(converted as NSString, replacementRange: Self.emptyRange)
+        let marked = client.markedRange()
+        let replaceRange = (marked.location != NSNotFound && marked.length > 0) ? marked : Self.emptyRange
+        client.insertText(converted as NSString, replacementRange: replaceRange)
         buffer.removeAll()
     }
 

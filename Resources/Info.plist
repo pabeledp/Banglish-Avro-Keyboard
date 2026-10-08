@@ -25,17 +25,19 @@
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSUIElement</key>
-    <false/>
+    <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>TISIconIsTemplate</key>
+    <false/>
     <key>TISIntendedLanguage</key>
     <string>bn</string>
     <key>InputMethodConnectionName</key>
-    <string>Banglish_Connection</string>
+    <string>org.banglish.inputmethod.Banglish_Connection</string>
     <key>InputMethodServerControllerClass</key>
     <string>BanglishInputController</string>
     <key>tsInputMethodIconFileKey</key>
-    <string>icon16.png</string>
+    <string>MenuIcon</string>
     <key>tsInputMethodCharacterRepertoireKey</key>
     <array>
         <string>Beng</string>
