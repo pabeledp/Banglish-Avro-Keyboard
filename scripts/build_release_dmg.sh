@@ -29,7 +29,6 @@ SDK_PATH="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
     -framework InputMethodKit \
     "${PROJECT_DIR}/src/AvroData.swift" \
     "${PROJECT_DIR}/src/BanglishEngine.swift" \
-    "${PROJECT_DIR}/src/BanglishAppDelegate.swift" \
     "${PROJECT_DIR}/src/BanglishInputController.swift" \
     "${PROJECT_DIR}/src/AppUI.swift" \
     "${PROJECT_DIR}/src/main.swift" \

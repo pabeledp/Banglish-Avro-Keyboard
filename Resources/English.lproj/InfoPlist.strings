@@ -1,5 +1,0 @@
-/* Localized versions of Info.plist keys */
-CFBundleName = "Banglish";
-CFBundleDisplayName = "Banglish";
-CFBundleShortVersionString = "Banglish version 1.0";
-CFBundleGetInfoString = "Banglish version 1.0";
