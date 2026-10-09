@@ -206,6 +206,36 @@ public final class BanglishDictionary {
             if w.contains("ক্ষ") { variants.insert(w.replacingOccurrences(of: "ক্ষ", with: "খ")) }
         }
 
+        // Rule J: Reph (র + Consonant -> র্ + Consonant) and Ro-fola (Consonant + র -> Consonant + ্র)
+        let bConsonants = ["ক", "খ", "গ", "ঘ", "ঙ", "চ", "ছ", "জ", "ঝ", "ঞ", "ট", "ঠ", "ড", "ঢ", "ণ", "ত", "থ", "দ", "ধ", "ন", "প", "ফ", "ব", "ভ", "ম", "য", "ল", "শ", "ষ", "স", "হ", "ড়", "ঢ়", "য়"]
+        let curWithReph = Array(variants) + [primary]
+        for w in curWithReph {
+            // Reph: র + C -> র্ + C (e.g. ডারক -> ডার্ক, করম -> কর্ম, বরন -> বর্ণ)
+            for c in bConsonants {
+                let target = "র" + c
+                if w.contains(target) {
+                    variants.insert(w.replacingOccurrences(of: target, with: "র্" + c))
+                }
+            }
+            // Ro-fola: C + র -> C + ্র (e.g. ডরম -> ড্রাম / ড্রম, পরম -> প্রম, বরম -> ভ্রম)
+            for c in bConsonants {
+                if c == "র" || c == "ড়" || c == "ঢ়" || c == "ৎ" { continue }
+                let target = c + "র"
+                if w.contains(target) {
+                    variants.insert(w.replacingOccurrences(of: target, with: c + "্র"))
+                }
+            }
+        }
+
+        // Rule K: Direct 'rr' reph variant for raw phonetic input (e.g. 'dark' -> 'darrk' -> 'ডার্ক')
+        if rawInput.contains("r") && !rawInput.contains("rr") {
+            let withDoubleR = rawInput.replacingOccurrences(of: "r", with: "rr")
+            let transliteratedRR = BanglishEngine.shared.transliterate(withDoubleR)
+            if !transliteratedRR.isEmpty {
+                variants.insert(transliteratedRR)
+            }
+        }
+
         // Prioritize dictionary confirmed variants
         var dictConfirmed: [String] = []
         var others: [String] = []

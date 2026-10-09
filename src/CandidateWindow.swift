@@ -32,7 +32,7 @@ public final class CandidateWindow: NSPanel {
     }
 
     private func setupUI() {
-        // Background container with dark glass theme
+        // Background container with dark green glass theme
         containerView.material = .hudWindow
         containerView.state = .active
         containerView.blendingMode = .behindWindow
@@ -40,8 +40,8 @@ public final class CandidateWindow: NSPanel {
         containerView.layer?.cornerRadius = 10.0
         containerView.layer?.masksToBounds = true
         containerView.layer?.borderWidth = 1.0
-        containerView.layer?.borderColor = NSColor(white: 1.0, alpha: 0.16).cgColor
-        containerView.layer?.backgroundColor = NSColor(hex: 0x1E1E22, alpha: 0.94).cgColor
+        containerView.layer?.borderColor = NSColor(hex: 0x2D6A4F, alpha: 0.6).cgColor
+        containerView.layer?.backgroundColor = NSColor(hex: 0x0B2217, alpha: 0.96).cgColor
 
         contentView = containerView
 
@@ -255,16 +255,16 @@ private final class CandidateRowView: NSView {
 
     private func updateAppearance() {
         if isSelected {
-            // Warm vibrant orange highlight matching Avro reference screenshot
-            layer?.backgroundColor = NSColor(hex: 0xF59E0B).cgColor
-            titleLabel.textColor = NSColor.black
-            titleLabel.font = NSFont.systemFont(ofSize: 15, weight: .medium)
+            // Selected row: Rich emerald dark green highlight with crisp white text
+            layer?.backgroundColor = NSColor(hex: 0x15803D).cgColor
+            titleLabel.textColor = NSColor.white
+            titleLabel.font = NSFont.systemFont(ofSize: 15, weight: .bold)
         } else {
             layer?.backgroundColor = NSColor.clear.cgColor
             if isRawLatin {
-                // Raw typed Latin at the bottom in warm amber color
-                titleLabel.textColor = NSColor(hex: 0xF59E0B)
-                titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .regular)
+                // Raw typed Latin at the bottom in luminous mint/light green
+                titleLabel.textColor = NSColor(hex: 0x86EFAC)
+                titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .medium)
             } else {
                 titleLabel.textColor = NSColor.white
                 titleLabel.font = NSFont.systemFont(ofSize: 15, weight: .regular)
