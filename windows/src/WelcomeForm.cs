@@ -68,6 +68,18 @@ namespace Banglish.UI
                         logoImg = new Bitmap(ms);
                     }
                 }
+                string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+                if (File.Exists(icoPath))
+                {
+                    this.Icon = new Icon(icoPath);
+                }
+                else if (logoImg != null)
+                {
+                    using (Bitmap b = new Bitmap(logoImg, 32, 32))
+                    {
+                        this.Icon = Icon.FromHandle(b.GetHicon());
+                    }
+                }
             }
             catch {}
 
@@ -156,22 +168,71 @@ namespace Banglish.UI
             btnStart.Click += (s, e) => this.Close();
             this.Controls.Add(btnStart);
 
-            // Developer Credit
-            Label lblCredit = new Label
+            // Developer Credits: FramEmpire (www.framempire.com) & A M Pabel (www.ampabel.com)
+            Panel pnlCredits = new Panel
             {
-                Text = "Crafted with ❤️ by FramEmpire",
-                Font = new Font("Creato Display", 9.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(100, 116, 139),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Size = new Size(300, 22),
-                Location = new Point((this.Width - 300) / 2, 482),
+                Size = new Size(500, 26),
+                Location = new Point((this.Width - 500) / 2, 480),
+                BackColor = Color.Transparent
+            };
+
+            Label lblCrafted = new Label
+            {
+                Text = "Crafted with ❤️ by",
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(148, 163, 184),
+                AutoSize = true,
+                Location = new Point(70, 4)
+            };
+
+            LinkLabel lnkCompany = new LinkLabel
+            {
+                Text = "FramEmpire",
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9.5f, FontStyle.Bold),
+                LinkColor = Color.FromArgb(5, 150, 105),
+                ActiveLinkColor = Color.FromArgb(4, 120, 87),
+                VisitedLinkColor = Color.FromArgb(5, 150, 105),
+                LinkBehavior = LinkBehavior.HoverUnderline,
+                AutoSize = true,
+                Location = new Point(lblCrafted.Right + 3, 4),
                 Cursor = Cursors.Hand
             };
-            lblCredit.Click += (s, e) =>
+            lnkCompany.LinkClicked += (s, e) =>
             {
-                try { System.Diagnostics.Process.Start("https://github.com/pabeledp"); } catch {}
+                try { System.Diagnostics.Process.Start("https://www.framempire.com"); } catch {}
             };
-            this.Controls.Add(lblCredit);
+
+            Label lblDivider = new Label
+            {
+                Text = "•",
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = Color.FromArgb(203, 213, 225),
+                AutoSize = true,
+                Location = new Point(lnkCompany.Right + 5, 4)
+            };
+
+            LinkLabel lnkAuthor = new LinkLabel
+            {
+                Text = "A M Pabel",
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9.5f, FontStyle.Bold),
+                LinkColor = Color.FromArgb(15, 23, 42),
+                ActiveLinkColor = Color.FromArgb(5, 150, 105),
+                VisitedLinkColor = Color.FromArgb(15, 23, 42),
+                LinkBehavior = LinkBehavior.HoverUnderline,
+                AutoSize = true,
+                Location = new Point(lblDivider.Right + 5, 4),
+                Cursor = Cursors.Hand
+            };
+            lnkAuthor.LinkClicked += (s, e) =>
+            {
+                try { System.Diagnostics.Process.Start("https://www.ampabel.com"); } catch {}
+            };
+
+            pnlCredits.Controls.Add(lblCrafted);
+            pnlCredits.Controls.Add(lnkCompany);
+            pnlCredits.Controls.Add(lblDivider);
+            pnlCredits.Controls.Add(lnkAuthor);
+            this.Controls.Add(pnlCredits);
 
             this.Paint += WelcomeForm_Paint;
             this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width, this.Height, 20, 20));

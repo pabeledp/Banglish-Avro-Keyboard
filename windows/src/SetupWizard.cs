@@ -37,6 +37,21 @@ namespace Banglish.Setup
         private Image logoImg;
         private string targetFolder;
 
+        public static Font GetBestFont(string[] fontNames, float size, FontStyle style)
+        {
+            foreach (var name in fontNames)
+            {
+                using (var test = new Font(name, size, style))
+                {
+                    if (test.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        return new Font(name, size, style);
+                    }
+                }
+            }
+            return new Font(FontFamily.GenericSansSerif, size, style);
+        }
+
         public SetupWizard()
         {
             targetFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs\\Banglish");
@@ -61,6 +76,18 @@ namespace Banglish.Setup
                     using (MemoryStream ms = new MemoryStream(bytes))
                     {
                         logoImg = new Bitmap(ms);
+                    }
+                }
+                string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+                if (File.Exists(icoPath))
+                {
+                    this.Icon = new Icon(icoPath);
+                }
+                else if (logoImg != null)
+                {
+                    using (Bitmap b = new Bitmap(logoImg, 32, 32))
+                    {
+                        this.Icon = Icon.FromHandle(b.GetHicon());
                     }
                 }
             }
@@ -112,23 +139,57 @@ namespace Banglish.Setup
             btnNext = CreateNavButton("পরবর্তী (Next) →", pnlFooter.Width - 250, 14, 125, (s, e) => GoNext());
             btnNext.BackColor = Color.FromArgb(5, 150, 105);
             btnNext.ForeColor = Color.White;
-            btnNext.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            btnNext.Font = GetBestFont(new[] { "Hind Siliguri", "Segoe UI" }, 10f, FontStyle.Bold);
 
             btnBack = CreateNavButton("← পেছনে (Back)", pnlFooter.Width - 380, 14, 120, (s, e) => GoBack());
-            Label lblSetupCredit = new Label
+
+            // Credits: FramEmpire (www.framempire.com) & A M Pabel (www.ampabel.com)
+            LinkLabel lnkCompany = new LinkLabel
             {
                 Text = "FramEmpire",
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(148, 163, 184),
-                Location = new Point(24, 22),
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9.5f, FontStyle.Bold),
+                LinkColor = Color.FromArgb(5, 150, 105),
+                ActiveLinkColor = Color.FromArgb(4, 120, 87),
+                VisitedLinkColor = Color.FromArgb(5, 150, 105),
+                LinkBehavior = LinkBehavior.HoverUnderline,
+                Location = new Point(20, 22),
                 AutoSize = true,
                 Cursor = Cursors.Hand
             };
-            lblSetupCredit.Click += (s, e) =>
+            lnkCompany.LinkClicked += (s, e) =>
             {
-                try { System.Diagnostics.Process.Start("https://github.com/pabeledp"); } catch {}
+                try { System.Diagnostics.Process.Start("https://www.framempire.com"); } catch {}
             };
-            pnlFooter.Controls.Add(lblSetupCredit);
+
+            Label lblDot = new Label
+            {
+                Text = "•",
+                Font = new Font("Segoe UI", 9f),
+                ForeColor = Color.FromArgb(203, 213, 225),
+                Location = new Point(lnkCompany.Right + 3, 22),
+                AutoSize = true
+            };
+
+            LinkLabel lnkAuthor = new LinkLabel
+            {
+                Text = "A M Pabel",
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9.5f, FontStyle.Bold),
+                LinkColor = Color.FromArgb(30, 41, 59),
+                ActiveLinkColor = Color.FromArgb(5, 150, 105),
+                VisitedLinkColor = Color.FromArgb(30, 41, 59),
+                LinkBehavior = LinkBehavior.HoverUnderline,
+                Location = new Point(lblDot.Right + 3, 22),
+                AutoSize = true,
+                Cursor = Cursors.Hand
+            };
+            lnkAuthor.LinkClicked += (s, e) =>
+            {
+                try { System.Diagnostics.Process.Start("https://www.ampabel.com"); } catch {}
+            };
+
+            pnlFooter.Controls.Add(lnkCompany);
+            pnlFooter.Controls.Add(lblDot);
+            pnlFooter.Controls.Add(lnkAuthor);
 
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnNext);
@@ -152,7 +213,7 @@ namespace Banglish.Setup
             Button btn = new Button
             {
                 Text = text,
-                Font = new Font("Segoe UI", 9f, FontStyle.Regular),
+                Font = GetBestFont(new[] { "Hind Siliguri", "Segoe UI" }, 9.5f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(30, 41, 59),
                 BackColor = Color.White,
                 FlatStyle = FlatStyle.Flat,
@@ -176,13 +237,13 @@ namespace Banglish.Setup
             }
 
             using (var titleBrush = new SolidBrush(Color.FromArgb(15, 23, 42)))
-            using (var font = new Font("Segoe UI", 13f, FontStyle.Bold))
+            using (var font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 13f, FontStyle.Bold))
             {
                 g.DrawString("Banglish — Setup Wizard", font, titleBrush, 75, 18);
             }
 
             using (var subBrush = new SolidBrush(Color.FromArgb(5, 150, 105)))
-            using (var font = new Font("Hind Siliguri", 10.5f, FontStyle.Regular))
+            using (var font = GetBestFont(new[] { "Hind Siliguri", "Segoe UI" }, 10.5f, FontStyle.Regular))
             {
                 g.DrawString("বাংলায় লিখি বিজয়ের সুর  •  Windows Edition", font, subBrush, 75, 42);
             }
@@ -290,7 +351,7 @@ namespace Banglish.Setup
                 Text = "ব্রাউজ (Browse)...",
                 Location = new Point(485, 78),
                 Size = new Size(120, 28),
-                Font = new Font("Segoe UI", 9f),
+                Font = GetBestFont(new[] { "Hind Siliguri", "Segoe UI" }, 9f, FontStyle.Regular),
                 Cursor = Cursors.Hand
             };
             btnBrowse.Click += (s, e) =>
@@ -471,7 +532,7 @@ namespace Banglish.Setup
                 }
 
                 string sourceDir = AppDomain.CurrentDomain.BaseDirectory;
-                string[] filesToCopy = new string[] { "Banglish.exe", "words.txt", "Banglish-Logo.png" };
+                string[] filesToCopy = new string[] { "Banglish.exe", "words.txt", "Banglish-Logo.png", "app.ico" };
 
                 foreach (var file in filesToCopy)
                 {
@@ -537,6 +598,7 @@ namespace Banglish.Setup
                     dynamic shortcut = shell.CreateShortcut(shortcutPath);
                     shortcut.TargetPath = targetPath;
                     shortcut.WorkingDirectory = Path.GetDirectoryName(targetPath);
+                    shortcut.IconLocation = targetPath + ",0";
                     shortcut.Description = "Banglish — Phonetic Bangla Keyboard for Windows";
                     shortcut.Save();
                 }
