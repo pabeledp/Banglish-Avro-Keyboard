@@ -62,16 +62,20 @@ namespace Banglish
                 hook.IsEnabled = !hook.IsEnabled;
                 if (!hook.IsEnabled) candidateWindow.Hide();
             });
+            ToolStripMenuItem welcomeItem = new ToolStripMenuItem("Welcome & Quick Guide", null, (s, e) => new WelcomeForm().Show());
             ToolStripMenuItem testItem = new ToolStripMenuItem("Open Transliteration Tester", null, (s, e) => OpenTestWindow());
             ToolStripMenuItem aboutItem = new ToolStripMenuItem("About Banglish Windows", null, (s, e) => ShowAbout());
             ToolStripMenuItem exitItem = new ToolStripMenuItem("Exit Banglish", null, (s, e) => ExitApp());
 
             contextMenu.Items.Add(toggleItem);
+            contextMenu.Items.Add(welcomeItem);
             contextMenu.Items.Add(testItem);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add(aboutItem);
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add(exitItem);
+
+            CheckFirstRunWelcome();
 
             Icon appIcon = SystemIcons.Application;
             try
@@ -139,6 +143,29 @@ namespace Banglish
             testForm.Controls.Add(txtOut);
 
             testForm.Show();
+        }
+
+        private void CheckFirstRunWelcome()
+        {
+            try
+            {
+                string flagPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".first_run");
+                string localDataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Banglish");
+                string userFlagPath = Path.Combine(localDataDir, ".welcome_shown");
+
+                bool shouldShow = File.Exists(flagPath) || !File.Exists(userFlagPath);
+
+                if (shouldShow)
+                {
+                    if (!Directory.Exists(localDataDir)) Directory.CreateDirectory(localDataDir);
+                    File.WriteAllText(userFlagPath, DateTime.Now.ToString());
+                    if (File.Exists(flagPath)) File.Delete(flagPath);
+
+                    var welcome = new WelcomeForm();
+                    welcome.Show();
+                }
+            }
+            catch {}
         }
 
         private void ShowAbout()
