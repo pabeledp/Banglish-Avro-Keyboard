@@ -63,7 +63,7 @@ namespace Banglish.UI
         public CandidateForm()
         {
             fontBangla = GetBestFont(new[] { "Hind Siliguri", "Nirmala UI", "Vrinda", "Kalpurush" }, 14f, FontStyle.Regular);
-            fontEnglish = GetBestFont(new[] { "Creato Display", "Plus Jakarta Sans", "Segoe UI", "Inter" }, 10f, FontStyle.Regular);
+            fontEnglish = GetBestFont(new[] { "Creato Display", "Plus Jakarta Sans", "Segoe UI", "Inter" }, 9.5f, FontStyle.Regular);
             fontNumber = GetBestFont(new[] { "Creato Display", "Plus Jakarta Sans", "Segoe UI" }, 9f, FontStyle.Bold);
 
             InitializeComponent();
@@ -91,9 +91,9 @@ namespace Banglish.UI
             this.TopMost = true;
             this.ShowInTaskbar = false;
             this.DoubleBuffered = true;
-            this.BackColor = Color.FromArgb(7, 28, 19); // Translucent Dark Emerald
+            this.BackColor = Color.FromArgb(16, 24, 28);
             this.ForeColor = Color.White;
-            this.Size = new Size(190, 220);
+            this.Size = new Size(180, 200);
 
             this.Paint += CandidateForm_Paint;
             this.MouseDown += CandidateForm_MouseDown;
@@ -111,19 +111,20 @@ namespace Banglish.UI
             // 1. Windows 11 Acrylic Backdrop
             try
             {
-                int backdropType = 3; // DWMSBT_TRANSIENTWINDOW (Acrylic Blur)
+                int backdropType = 3; // Acrylic
                 DwmSetWindowAttribute(this.Handle, 38, ref backdropType, sizeof(int));
             }
             catch {}
 
-            // 2. Windows 10 & 11 Acrylic Blur Behind
+            // 2. Windows 10 & 11 Acrylic Blur Behind (Clean translucent neutral dark glass)
             try
             {
                 var accent = new AccentPolicy
                 {
                     AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
                     AccentFlags = 2,
-                    GradientColor = (175 << 24) | (19 << 16) | (28 << 8) | 7 // ABGR Tint
+                    // Clean crystal translucent glass tint (alpha=130, dark neutral slate)
+                    GradientColor = (130 << 24) | (28 << 16) | (24 << 8) | 16
                 };
 
                 int size = Marshal.SizeOf(accent);
@@ -132,7 +133,7 @@ namespace Banglish.UI
 
                 var data = new WindowCompositionAttributeData
                 {
-                    Attribute = 19, // WCA_ACCENT_POLICY
+                    Attribute = 19,
                     Data = pData,
                     SizeOfData = size
                 };
@@ -155,25 +156,25 @@ namespace Banglish.UI
                 return;
             }
 
-            int headerH = 28;
-            int rowH = 32;
-            int totalH = headerH + (candidates.Count * rowH) + 10;
-            int totalW = 195;
+            int headerH = 26;
+            int rowH = 30;
+            int totalH = headerH + (candidates.Count * rowH) + 8;
+            int totalW = 185;
 
             using (var g = this.CreateGraphics())
             {
                 foreach (var c in candidates)
                 {
                     var sz = g.MeasureString(c, fontBangla);
-                    if (sz.Width + 65 > totalW)
+                    if (sz.Width + 60 > totalW)
                     {
-                        totalW = (int)sz.Width + 65;
+                        totalW = (int)sz.Width + 60;
                     }
                 }
             }
 
             this.Size = new Size(totalW, totalH);
-            this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width, this.Height, 20, 20));
+            this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width, this.Height, 16, 16));
 
             PositionNearCaret();
             this.Invalidate();
@@ -190,7 +191,7 @@ namespace Banglish.UI
             Rectangle screen = Screen.FromPoint(caretPos).WorkingArea;
 
             int x = caretPos.X;
-            // 40px clean distance below typing line to prevent any overlapping
+            // Generous 40px spacing below typing caret so it never overlaps
             int y = caretPos.Y + 40;
 
             if (x + this.Width > screen.Right)
@@ -199,7 +200,6 @@ namespace Banglish.UI
             }
             if (y + this.Height > screen.Bottom)
             {
-                // Position safely above caret if near screen bottom
                 y = caretPos.Y - this.Height - 16;
             }
 
@@ -217,113 +217,72 @@ namespace Banglish.UI
 
             Rectangle rect = this.ClientRectangle;
 
-            // 1. Frosted Liquid Glass Base Tint (Translucent Emerald)
-            using (var baseBrush = new LinearGradientBrush(rect,
-                Color.FromArgb(170, 9, 36, 25),
-                Color.FromArgb(185, 4, 22, 15),
-                LinearGradientMode.Vertical))
+            // 1. Clean Translucent Acrylic Glass Surface (No harsh tints, crystal clean blur)
+            using (var glassBrush = new SolidBrush(Color.FromArgb(140, 16, 24, 22)))
             {
-                g.FillRectangle(baseBrush, rect);
+                g.FillRectangle(glassBrush, rect);
             }
 
-            // 2. Glossy Specular Light Flare (Apple Liquid Gloss Effect on upper 45%)
-            int glossH = (int)(rect.Height * 0.45);
-            Rectangle glossRect = new Rectangle(1, 1, rect.Width - 2, glossH);
-            using (var glossPath = GetRoundedRectPath(glossRect, 18))
-            using (var glossBrush = new LinearGradientBrush(glossRect,
-                Color.FromArgb(80, 255, 255, 255), // Luminous gloss sheen
-                Color.FromArgb(0, 255, 255, 255),  // Fades down smoothly
-                LinearGradientMode.Vertical))
+            // 2. Subtle 1px Glass Rim Border (Clean, rounded, smooth)
+            using (var borderPen = new Pen(Color.FromArgb(45, 255, 255, 255), 1f))
             {
-                g.FillPath(glossBrush, glossPath);
+                var borderPath = GetRoundedRectPath(new Rectangle(0, 0, rect.Width - 1, rect.Height - 1), 16);
+                g.DrawPath(borderPen, borderPath);
             }
 
-            // 3. Top Specular Rim Light (Crisp glass edge reflection)
-            using (var rimPen = new Pen(Color.FromArgb(200, 255, 255, 255), 1.2f))
+            // 3. Header Text: "Banglish (বাংলা) • F12" (Clean minimal header, NO divider line)
+            using (var headerBrush = new SolidBrush(Color.FromArgb(160, 255, 255, 255)))
             {
-                g.DrawLine(rimPen, 18, 1, rect.Width - 18, 1);
+                g.DrawString("Banglish (বাংলা) • F12", fontEnglish, headerBrush, 14, 7);
             }
 
-            // 4. Outer Glass Glow Border
-            using (var outerBorderPen = new Pen(Color.FromArgb(140, 52, 211, 153), 1.5f))
-            {
-                var fullPath = GetRoundedRectPath(new Rectangle(0, 0, rect.Width - 1, rect.Height - 1), 18);
-                g.DrawPath(outerBorderPen, fullPath);
-            }
-
-            // 5. Header Title & Divider: "Banglish (বাংলা) • F12"
-            using (var headerBrush = new SolidBrush(Color.FromArgb(209, 250, 229))) // Soft Mint Gloss
-            {
-                g.DrawString("Banglish (বাংলা) • F12", fontEnglish, headerBrush, 14, 8);
-            }
-
-            using (var linePen = new Pen(Color.FromArgb(50, 255, 255, 255)))
-            {
-                g.DrawLine(linePen, 10, 27, rect.Width - 10, 27);
-            }
-
-            // 6. Candidate Rows
-            int yOffset = 31;
-            int rowH = 32;
+            // 4. Candidate Rows
+            int yOffset = 28;
+            int rowH = 30;
 
             for (int i = 0; i < candidates.Count; i++)
             {
                 bool isSelected = (i == selectedIndex);
                 bool isLastRaw = (i == candidates.Count - 1 && candidates[i] == currentRaw);
-                Rectangle rowRect = new Rectangle(7, yOffset, this.Width - 14, rowH);
+                Rectangle rowRect = new Rectangle(5, yOffset, this.Width - 10, rowH);
 
                 if (isSelected)
                 {
-                    // Glossy Emerald Pill with Specular Reflection
-                    using (var pillPath = GetRoundedRectPath(rowRect, 10))
-                    using (var pillBrush = new LinearGradientBrush(rowRect,
-                        Color.FromArgb(235, 16, 185, 129), // Bright Emerald Top
-                        Color.FromArgb(240, 4, 120, 87),   // Rich Emerald Bottom
-                        LinearGradientMode.Vertical))
-                    using (var pillBorderPen = new Pen(Color.FromArgb(210, 167, 243, 208), 1f))
+                    // Selected Item: Rich Dark Green Capsule (Clean, no lines, no specular cut across text)
+                    using (var pillPath = GetRoundedRectPath(rowRect, 8))
+                    using (var pillBrush = new SolidBrush(Color.FromArgb(220, 6, 78, 59))) // Rich Dark Green (#064E3B)
                     {
                         g.FillPath(pillBrush, pillPath);
-                        g.DrawPath(pillBorderPen, pillPath);
-
-                        // Pill specular upper shine
-                        Rectangle pillShineRect = new Rectangle(rowRect.X + 1, rowRect.Y + 1, rowRect.Width - 2, rowRect.Height / 2);
-                        using (var shineBrush = new LinearGradientBrush(pillShineRect,
-                            Color.FromArgb(90, 255, 255, 255),
-                            Color.FromArgb(0, 255, 255, 255),
-                            LinearGradientMode.Vertical))
-                        {
-                            g.FillRectangle(shineBrush, pillShineRect);
-                        }
                     }
                 }
 
                 // Number Badge
                 string numStr = (i + 1).ToString();
-                Color numColor = isSelected ? Color.White : Color.FromArgb(167, 243, 208);
+                Color numColor = isSelected ? Color.FromArgb(167, 243, 208) : Color.FromArgb(130, 255, 255, 255);
                 using (var numBrush = new SolidBrush(numColor))
                 {
-                    g.DrawString(numStr + ".", fontNumber, numBrush, 14, yOffset + 7);
+                    g.DrawString(numStr + ".", fontNumber, numBrush, 12, yOffset + 6);
                 }
 
-                // Text Content
+                // Candidate Word Text
                 string word = candidates[i];
                 Color wordColor;
                 Font wordFont;
 
                 if (isLastRaw)
                 {
-                    wordColor = Color.FromArgb(134, 239, 172); // Mint green
+                    wordColor = Color.FromArgb(134, 239, 172); // Soft mint for raw Latin
                     wordFont = fontEnglish;
                 }
                 else
                 {
-                    wordColor = Color.White;
+                    wordColor = isSelected ? Color.White : Color.FromArgb(226, 232, 240); // Clean Slate-200
                     wordFont = isSelected ? new Font(fontBangla, FontStyle.Bold) : fontBangla;
                 }
 
                 using (var textBrush = new SolidBrush(wordColor))
                 {
-                    g.DrawString(word, wordFont, textBrush, 36, yOffset + 4);
+                    g.DrawString(word, wordFont, textBrush, 32, yOffset + 3);
                 }
 
                 yOffset += rowH;
@@ -344,7 +303,7 @@ namespace Banglish.UI
 
         private void CandidateForm_MouseMove(object sender, MouseEventArgs e)
         {
-            int rowIdx = (e.Y - 31) / 32;
+            int rowIdx = (e.Y - 28) / 30;
             if (rowIdx >= 0 && rowIdx < candidates.Count && rowIdx != selectedIndex)
             {
                 selectedIndex = rowIdx;
@@ -354,7 +313,7 @@ namespace Banglish.UI
 
         private void CandidateForm_MouseDown(object sender, MouseEventArgs e)
         {
-            int rowIdx = (e.Y - 31) / 32;
+            int rowIdx = (e.Y - 28) / 30;
             if (rowIdx >= 0 && rowIdx < candidates.Count)
             {
                 selectedIndex = rowIdx;
