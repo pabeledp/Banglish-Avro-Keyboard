@@ -49,7 +49,11 @@ namespace Banglish.UI
                 string logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Banglish-Logo.png");
                 if (File.Exists(logoPath))
                 {
-                    picLogo.Image = Image.FromFile(logoPath);
+                    byte[] bytes = File.ReadAllBytes(logoPath);
+                    using (MemoryStream ms = new MemoryStream(bytes))
+                    {
+                        picLogo.Image = new Bitmap(ms);
+                    }
                 }
             }
             catch {}

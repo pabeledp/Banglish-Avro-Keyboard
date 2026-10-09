@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Banglish.Core;
 using Banglish.UI;
@@ -73,10 +74,13 @@ namespace Banglish
                 string logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Banglish-Logo.png");
                 if (File.Exists(logoPath))
                 {
-                    using (Bitmap bmp = new Bitmap(logoPath))
+                    byte[] bytes = File.ReadAllBytes(logoPath);
+                    using (MemoryStream ms = new MemoryStream(bytes))
+                    using (Bitmap bmp = new Bitmap(ms))
                     {
                         IntPtr hIcon = bmp.GetHicon();
-                        appIcon = Icon.FromHandle(hIcon);
+                        appIcon = (Icon)Icon.FromHandle(hIcon).Clone();
+                        DestroyIcon(hIcon);
                     }
                 }
             }
@@ -142,6 +146,9 @@ namespace Banglish
                 "About Banglish", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern bool DestroyIcon(IntPtr handle);
+
         private void ExitApp()
         {
             hook.Stop();
@@ -153,9 +160,21 @@ namespace Banglish
         [STAThread]
         static void Main()
         {
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new TrayApplication());
+            try
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new TrayApplication());
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ex.ToString());
+                }
+                catch {}
+                MessageBox.Show(ex.Message, "Banglish Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }
