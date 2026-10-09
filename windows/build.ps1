@@ -7,7 +7,7 @@ if (-not (Test-Path $csc)) {
 
 Write-Host "Compiling Banglish.exe for Windows..." -ForegroundColor Green
 
-& $csc /nologo /target:winexe /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\AvroData.cs src\BanglishEngine.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\TrayApp.cs
+& $csc /nologo /target:winexe /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Core.dll src\AvroData.cs src\BanglishEngine.cs src\BanglishDictionary.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\TrayApp.cs
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`nBUILD SUCCESSFUL! Output: windows\Banglish.exe" -ForegroundColor Green

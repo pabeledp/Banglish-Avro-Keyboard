@@ -24,27 +24,32 @@ namespace Banglish
             candidateWindow = new CandidateForm();
 
             hook = new KeyboardHook();
-            hook.BufferChanged += (raw, bangla) =>
+
+            candidateWindow.OnSelectCandidate = (chosen) =>
+            {
+                hook.CommitSelectedCandidate(chosen);
+            };
+
+            hook.CandidatesChanged += (raw, candList, selIdx) =>
             {
                 if (candidateWindow.InvokeRequired)
                 {
-                    candidateWindow.Invoke(new Action(() => candidateWindow.UpdatePreview(raw, bangla)));
+                    candidateWindow.Invoke(new Action(() => candidateWindow.UpdateCandidates(raw, candList, selIdx)));
                 }
                 else
                 {
-                    candidateWindow.UpdatePreview(raw, bangla);
+                    candidateWindow.UpdateCandidates(raw, candList, selIdx);
                 }
             };
 
             hook.ModeToggled += (enabled) =>
             {
-                if (candidateWindow.InvokeRequired)
+                if (!enabled)
                 {
-                    candidateWindow.Invoke(new Action(() => candidateWindow.SetMode(enabled)));
-                }
-                else
-                {
-                    candidateWindow.SetMode(enabled);
+                    if (candidateWindow.InvokeRequired)
+                        candidateWindow.Invoke(new Action(() => candidateWindow.Hide()));
+                    else
+                        candidateWindow.Hide();
                 }
 
                 string msg = enabled ? "Banglish (বাংলা) Mode Active" : "English Mode Active";
@@ -55,7 +60,7 @@ namespace Banglish
             ToolStripMenuItem toggleItem = new ToolStripMenuItem("Toggle Banglish (F12)", null, (s, e) =>
             {
                 hook.IsEnabled = !hook.IsEnabled;
-                candidateWindow.SetMode(hook.IsEnabled);
+                if (!hook.IsEnabled) candidateWindow.Hide();
             });
             ToolStripMenuItem testItem = new ToolStripMenuItem("Open Transliteration Tester", null, (s, e) => OpenTestWindow());
             ToolStripMenuItem aboutItem = new ToolStripMenuItem("About Banglish Windows", null, (s, e) => ShowAbout());
@@ -118,13 +123,14 @@ namespace Banglish
                 Height = 180,
                 Multiline = true,
                 ReadOnly = true,
-                Font = new Font("Nirmala UI", 15f, FontStyle.Bold),
+                Font = new Font("Hind Siliguri", 15f, FontStyle.Bold),
                 BackColor = Color.White
             };
 
             txtIn.TextChanged += (s, e) =>
             {
-                txtOut.Text = BanglishEngine.Shared.Transliterate(txtIn.Text);
+                var cands = BanglishDictionary.Shared.GetCandidates(txtIn.Text);
+                txtOut.Text = string.Join("\r\n", cands);
             };
 
             testForm.Controls.Add(lblIn);

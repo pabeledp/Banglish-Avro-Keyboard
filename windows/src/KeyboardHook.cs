@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -22,8 +23,10 @@ namespace Banglish.Core
         public bool IsEnabled { get; set; }
         public StringBuilder Buffer { get; private set; }
         private string _lastComposed = "";
+        private List<string> _currentCandidates = new List<string>();
+        private int _selectedCandidateIndex = 0;
 
-        public event Action<string, string> BufferChanged;
+        public event Action<string, List<string>, int> CandidatesChanged;
         public event Action<bool> ModeToggled;
 
         public KeyboardHook()
@@ -67,13 +70,24 @@ namespace Banglish.Core
             public UIntPtr dwExtraInfo;
         }
 
+        public void CommitSelectedCandidate(string candidate)
+        {
+            int prevCount = _lastComposed.Length;
+            ReplaceComposedText(prevCount, candidate);
+            Buffer.Clear();
+            _lastComposed = "";
+            _currentCandidates.Clear();
+            _selectedCandidateIndex = 0;
+            TriggerCandidatesUpdate();
+        }
+
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
             {
                 KBDLLHOOKSTRUCT hookStruct = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
 
-                // If key is injected by our own SendInput, pass it through immediately!
+                // If key is injected by our own SendInput, pass it through immediately
                 if (hookStruct.dwExtraInfo == (UIntPtr)0xBA991158 || (hookStruct.flags & 0x10) != 0)
                 {
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
@@ -87,7 +101,9 @@ namespace Banglish.Core
                     IsEnabled = !IsEnabled;
                     Buffer.Clear();
                     _lastComposed = "";
-                    TriggerBufferUpdate();
+                    _currentCandidates.Clear();
+                    _selectedCandidateIndex = 0;
+                    TriggerCandidatesUpdate();
                     if (ModeToggled != null) ModeToggled(IsEnabled);
                     return (IntPtr)1;
                 }
@@ -97,6 +113,51 @@ namespace Banglish.Core
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
 
+                // If candidate window is active and user presses number key 1-9
+                if (Buffer.Length > 0 && key >= System.Windows.Forms.Keys.D1 && key <= System.Windows.Forms.Keys.D9)
+                {
+                    bool shift = (System.Windows.Forms.Control.ModifierKeys & System.Windows.Forms.Keys.Shift) != 0;
+                    if (!shift)
+                    {
+                        int choiceIdx = (key - System.Windows.Forms.Keys.D1);
+                        if (choiceIdx < _currentCandidates.Count)
+                        {
+                            CommitSelectedCandidate(_currentCandidates[choiceIdx]);
+                            return (IntPtr)1;
+                        }
+                    }
+                }
+
+                // Navigate candidates using Down arrow or Tab
+                if (Buffer.Length > 0 && (key == System.Windows.Forms.Keys.Down || key == System.Windows.Forms.Keys.Tab))
+                {
+                    if (_currentCandidates.Count > 1)
+                    {
+                        _selectedCandidateIndex = (_selectedCandidateIndex + 1) % _currentCandidates.Count;
+                        string chosen = _currentCandidates[_selectedCandidateIndex];
+                        int prevCount = _lastComposed.Length;
+                        ReplaceComposedText(prevCount, chosen);
+                        _lastComposed = chosen;
+                        TriggerCandidatesUpdate();
+                        return (IntPtr)1;
+                    }
+                }
+
+                // Navigate candidates using Up arrow
+                if (Buffer.Length > 0 && key == System.Windows.Forms.Keys.Up)
+                {
+                    if (_currentCandidates.Count > 1)
+                    {
+                        _selectedCandidateIndex = (_selectedCandidateIndex - 1 + _currentCandidates.Count) % _currentCandidates.Count;
+                        string chosen = _currentCandidates[_selectedCandidateIndex];
+                        int prevCount = _lastComposed.Length;
+                        ReplaceComposedText(prevCount, chosen);
+                        _lastComposed = chosen;
+                        TriggerCandidatesUpdate();
+                        return (IntPtr)1;
+                    }
+                }
+
                 // If user clicks Space or Enter: finalize the word
                 if (key == System.Windows.Forms.Keys.Space || key == System.Windows.Forms.Keys.Return)
                 {
@@ -104,7 +165,9 @@ namespace Banglish.Core
                     {
                         Buffer.Clear();
                         _lastComposed = "";
-                        TriggerBufferUpdate();
+                        _currentCandidates.Clear();
+                        _selectedCandidateIndex = 0;
+                        TriggerCandidatesUpdate();
                     }
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
@@ -119,7 +182,10 @@ namespace Banglish.Core
 
                         if (Buffer.Length > 0)
                         {
-                            string newBangla = BanglishEngine.Shared.Transliterate(Buffer.ToString());
+                            _currentCandidates = BanglishDictionary.Shared.GetCandidates(Buffer.ToString());
+                            _selectedCandidateIndex = 0;
+                            string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : "";
+
                             ReplaceComposedText(prevCount, newBangla);
                             _lastComposed = newBangla;
                         }
@@ -127,9 +193,11 @@ namespace Banglish.Core
                         {
                             ReplaceComposedText(prevCount, "");
                             _lastComposed = "";
+                            _currentCandidates.Clear();
+                            _selectedCandidateIndex = 0;
                         }
 
-                        TriggerBufferUpdate();
+                        TriggerCandidatesUpdate();
                         return (IntPtr)1;
                     }
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
@@ -143,7 +211,9 @@ namespace Banglish.Core
                         ReplaceComposedText(_lastComposed.Length, "");
                         Buffer.Clear();
                         _lastComposed = "";
-                        TriggerBufferUpdate();
+                        _currentCandidates.Clear();
+                        _selectedCandidateIndex = 0;
+                        TriggerCandidatesUpdate();
                         return (IntPtr)1;
                     }
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
@@ -155,12 +225,15 @@ namespace Banglish.Core
                 {
                     int prevCount = _lastComposed.Length;
                     Buffer.Append(ch);
-                    string newBangla = BanglishEngine.Shared.Transliterate(Buffer.ToString());
+
+                    _currentCandidates = BanglishDictionary.Shared.GetCandidates(Buffer.ToString());
+                    _selectedCandidateIndex = 0;
+                    string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : "";
 
                     ReplaceComposedText(prevCount, newBangla);
                     _lastComposed = newBangla;
 
-                    TriggerBufferUpdate();
+                    TriggerCandidatesUpdate();
                     return (IntPtr)1; // Swallowed, because Bangla was typed live into the active app!
                 }
             }
@@ -201,11 +274,13 @@ namespace Banglish.Core
             return '\0';
         }
 
-        private void TriggerBufferUpdate()
+        private void TriggerCandidatesUpdate()
         {
             string raw = Buffer.ToString();
-            string bangla = _lastComposed;
-            if (BufferChanged != null) BufferChanged(raw, bangla);
+            if (CandidatesChanged != null)
+            {
+                CandidatesChanged(raw, _currentCandidates, _selectedCandidateIndex);
+            }
         }
 
         public static void ReplaceComposedText(int backspaceCount, string newText)
@@ -241,7 +316,7 @@ namespace Banglish.Core
                     {
                         ki = new KEYBDINPUT
                         {
-                            wVk = 0x08,
+                            wVk = 0x08, // VK_BACK
                             wScan = 0,
                             dwFlags = 0x0002, // KEYEVENTF_KEYUP
                             time = 0,
@@ -290,7 +365,6 @@ namespace Banglish.Core
             uint sent = SendInput((uint)totalInputs, inputs, Marshal.SizeOf(typeof(INPUT)));
             if (sent == 0)
             {
-                // Fallback via keybd_event if SendInput is blocked
                 for (int i = 0; i < backspaceCount; i++)
                 {
                     keybd_event(0x08, 0, 0, MAGIC_COOKIE);

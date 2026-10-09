@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Banglish.Core;
 
@@ -8,119 +11,98 @@ namespace Banglish.UI
 {
     public class CandidateForm : Form
     {
-        private Label lblMode;
-        private Label lblRaw;
-        private Label lblBangla;
-        private PictureBox picLogo;
-        private Panel pnlHeader;
+        [DllImport("Gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
+        private static extern IntPtr CreateRoundRectRgn(
+            int nLeftRect, int nTopRect, int nRightRect, int nBottomRect,
+            int nWidthEllipse, int nHeightEllipse);
+
+        private readonly Font fontBangla;
+        private readonly Font fontEnglish;
+        private readonly Font fontNumber;
+
+        private List<string> candidates = new List<string>();
+        private int selectedIndex = 0;
+        private string currentRaw = "";
+
+        public Action<string> OnSelectCandidate;
 
         public CandidateForm()
         {
-            InitializeUI();
+            fontBangla = GetBestFont(new[] { "Hind Siliguri", "Nirmala UI", "Vrinda", "Kalpurush" }, 14f, FontStyle.Regular);
+            fontEnglish = GetBestFont(new[] { "Creato Display", "Plus Jakarta Sans", "Segoe UI", "Inter" }, 10f, FontStyle.Regular);
+            fontNumber = GetBestFont(new[] { "Creato Display", "Plus Jakarta Sans", "Segoe UI" }, 9f, FontStyle.Bold);
+
+            InitializeComponent();
         }
 
-        private void InitializeUI()
+        private static Font GetBestFont(string[] fontNames, float size, FontStyle style)
+        {
+            foreach (var name in fontNames)
+            {
+                using (var test = new Font(name, size, style))
+                {
+                    if (test.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        return new Font(name, size, style);
+                    }
+                }
+            }
+            return new Font(FontFamily.GenericSansSerif, size, style);
+        }
+
+        private void InitializeComponent()
         {
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.Manual;
             this.TopMost = true;
             this.ShowInTaskbar = false;
-            this.BackColor = Color.White;
-            this.Padding = new Padding(2);
-            this.Size = new Size(320, 100);
+            this.DoubleBuffered = true;
+            this.BackColor = Color.FromArgb(11, 34, 23); // Deep Apple Emerald Glass (0x0B2217)
+            this.ForeColor = Color.White;
+            this.Size = new Size(180, 220);
 
-            pnlHeader = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 30,
-                BackColor = Color.FromArgb(5, 150, 105) // Emerald-600 (Mac Brand Color)
-            };
-
-            picLogo = new PictureBox
-            {
-                Size = new Size(22, 22),
-                Location = new Point(6, 4),
-                SizeMode = PictureBoxSizeMode.Zoom
-            };
-
-            // Load logo from Banglish-Logo.png if available
-            try
-            {
-                string logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Banglish-Logo.png");
-                if (File.Exists(logoPath))
-                {
-                    byte[] bytes = File.ReadAllBytes(logoPath);
-                    using (MemoryStream ms = new MemoryStream(bytes))
-                    {
-                        picLogo.Image = new Bitmap(ms);
-                    }
-                }
-            }
-            catch {}
-
-            lblMode = new Label
-            {
-                Text = "Banglish (বাংলা)  •  F12",
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                Location = new Point(32, 5),
-                AutoSize = true
-            };
-
-            pnlHeader.Controls.Add(picLogo);
-            pnlHeader.Controls.Add(lblMode);
-
-            lblRaw = new Label
-            {
-                ForeColor = Color.FromArgb(4, 120, 87), // Emerald-700
-                Font = new Font("Consolas", 10.5f, FontStyle.Bold),
-                Location = new Point(12, 36),
-                Size = new Size(296, 20),
-                Text = ""
-            };
-
-            lblBangla = new Label
-            {
-                ForeColor = Color.FromArgb(15, 23, 42), // Slate-900
-                Font = new Font("Hind Siliguri", 15f, FontStyle.Bold),
-                Location = new Point(10, 58),
-                Size = new Size(296, 36),
-                Text = ""
-            };
-
-            // Font fallback chain for Bangla rendering
-            try
-            {
-                lblBangla.Font = new Font("Nirmala UI", 15f, FontStyle.Bold);
-            }
-            catch {}
-
-            this.Controls.Add(lblBangla);
-            this.Controls.Add(lblRaw);
-            this.Controls.Add(pnlHeader);
-
-            // Emerald Border Paint
-            this.Paint += (s, e) =>
-            {
-                using (Pen pen = new Pen(Color.FromArgb(16, 185, 129), 2))
-                {
-                    e.Graphics.DrawRectangle(pen, 0, 0, this.Width - 1, this.Height - 1);
-                }
-            };
+            this.Paint += CandidateForm_Paint;
+            this.MouseDown += CandidateForm_MouseDown;
+            this.MouseMove += CandidateForm_MouseMove;
         }
 
-        public void UpdatePreview(string raw, string bangla)
+        public void UpdateCandidates(string raw, List<string> newCandidates, int selIdx = 0)
         {
-            if (string.IsNullOrEmpty(raw))
+            this.currentRaw = raw;
+            this.candidates = newCandidates ?? new List<string>();
+            this.selectedIndex = Math.Max(0, Math.Min(selIdx, candidates.Count - 1));
+
+            if (string.IsNullOrEmpty(raw) || candidates.Count == 0)
             {
                 this.Hide();
                 return;
             }
 
-            lblRaw.Text = "Phonetic: " + raw;
-            lblBangla.Text = bangla;
+            // Calculate dynamic height based on candidate count
+            int headerH = 28;
+            int rowH = 32;
+            int totalH = headerH + (candidates.Count * rowH) + 8;
+            int totalW = 190;
+
+            // Measure longest candidate
+            using (var g = this.CreateGraphics())
+            {
+                foreach (var c in candidates)
+                {
+                    var sz = g.MeasureString(c, fontBangla);
+                    if (sz.Width + 60 > totalW)
+                    {
+                        totalW = (int)sz.Width + 60;
+                    }
+                }
+            }
+
+            this.Size = new Size(totalW, totalH);
+            this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width, this.Height, 18, 18));
 
             PositionNearCaret();
+
+            this.Invalidate();
 
             if (!this.Visible)
             {
@@ -134,35 +116,168 @@ namespace Banglish.UI
             Rectangle screen = Screen.FromPoint(caretPos).WorkingArea;
 
             int x = caretPos.X;
-            int y = caretPos.Y + 22; // 22px below current typing line
+            // 38px offset below caret line to ensure zero overlap with typing
+            int y = caretPos.Y + 38;
 
             if (x + this.Width > screen.Right)
             {
-                x = screen.Right - this.Width - 10;
+                x = screen.Right - this.Width - 12;
             }
             if (y + this.Height > screen.Bottom)
             {
-                y = caretPos.Y - this.Height - 10; // Lift above line if near bottom
+                // Position safely above the text line if near bottom
+                y = caretPos.Y - this.Height - 14;
             }
 
-            if (x < screen.Left) x = screen.Left + 10;
-            if (y < screen.Top) y = screen.Top + 10;
+            if (x < screen.Left + 8) x = screen.Left + 8;
+            if (y < screen.Top + 8) y = screen.Top + 8;
 
             this.Location = new Point(x, y);
         }
 
-        public void SetMode(bool isBangla)
+        public string GetSelectedCandidate()
         {
-            if (isBangla)
+            if (selectedIndex >= 0 && selectedIndex < candidates.Count)
             {
-                pnlHeader.BackColor = Color.FromArgb(5, 150, 105);
-                lblMode.Text = "Banglish (বাংলা)  •  F12";
+                return candidates[selectedIndex];
             }
-            else
+            return candidates.Count > 0 ? candidates[0] : "";
+        }
+
+        public void SelectNext()
+        {
+            if (candidates.Count == 0) return;
+            selectedIndex = (selectedIndex + 1) % candidates.Count;
+            this.Invalidate();
+        }
+
+        public void SelectPrevious()
+        {
+            if (candidates.Count == 0) return;
+            selectedIndex = (selectedIndex - 1 + candidates.Count) % candidates.Count;
+            this.Invalidate();
+        }
+
+        private void CandidateForm_Paint(object sender, PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+            // 1. Apple Liquid Glass Background
+            using (var brush = new LinearGradientBrush(this.ClientRectangle,
+                Color.FromArgb(245, 11, 34, 23),
+                Color.FromArgb(240, 5, 46, 22),
+                LinearGradientMode.Vertical))
             {
-                pnlHeader.BackColor = Color.FromArgb(71, 85, 105);
-                lblMode.Text = "English Mode  •  F12";
-                this.Hide();
+                g.FillRectangle(brush, this.ClientRectangle);
+            }
+
+            // 2. Glass Glow Border
+            using (var borderPen = new Pen(Color.FromArgb(160, 45, 106, 79), 1.5f))
+            {
+                g.DrawRectangle(borderPen, 0, 0, this.Width - 1, this.Height - 1);
+            }
+
+            // 3. Header bar: "Banglish (বাংলা) • F12"
+            using (var headerBrush = new SolidBrush(Color.FromArgb(167, 243, 208))) // Mint Emerald
+            {
+                g.DrawString("Banglish (বাংলা) • F12", fontEnglish, headerBrush, 12, 7);
+            }
+
+            using (var linePen = new Pen(Color.FromArgb(40, 52, 211, 153)))
+            {
+                g.DrawLine(linePen, 10, 26, this.Width - 10, 26);
+            }
+
+            // 4. Candidate Rows
+            int yOffset = 30;
+            int rowH = 32;
+
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                bool isSelected = (i == selectedIndex);
+                bool isLastRaw = (i == candidates.Count - 1 && candidates[i] == currentRaw);
+                Rectangle rowRect = new Rectangle(6, yOffset, this.Width - 12, rowH);
+
+                if (isSelected)
+                {
+                    // Glowing Emerald Pill for Selected Item
+                    using (var pillBrush = new SolidBrush(Color.FromArgb(220, 21, 128, 61)))
+                    using (var pillPen = new Pen(Color.FromArgb(180, 52, 211, 153), 1f))
+                    {
+                        var pillPath = GetRoundedRectPath(rowRect, 8);
+                        g.FillPath(pillBrush, pillPath);
+                        g.DrawPath(pillPen, pillPath);
+                    }
+                }
+
+                // Number Badge (1, 2, 3...)
+                string numStr = (i + 1).ToString();
+                Color numColor = isSelected ? Color.White : Color.FromArgb(167, 243, 208);
+                using (var numBrush = new SolidBrush(numColor))
+                {
+                    g.DrawString(numStr + ".", fontNumber, numBrush, 12, yOffset + 7);
+                }
+
+                // Word Text
+                string word = candidates[i];
+                Color wordColor;
+                Font wordFont;
+
+                if (isLastRaw)
+                {
+                    wordColor = Color.FromArgb(134, 239, 172); // Luminous mint green
+                    wordFont = fontEnglish;
+                }
+                else
+                {
+                    wordColor = Color.White;
+                    wordFont = isSelected ? new Font(fontBangla, FontStyle.Bold) : fontBangla;
+                }
+
+                using (var textBrush = new SolidBrush(wordColor))
+                {
+                    g.DrawString(word, wordFont, textBrush, 34, yOffset + 4);
+                }
+
+                yOffset += rowH;
+            }
+        }
+
+        private static GraphicsPath GetRoundedRectPath(Rectangle rect, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
+        private void CandidateForm_MouseMove(object sender, MouseEventArgs e)
+        {
+            int rowIdx = (e.Y - 30) / 32;
+            if (rowIdx >= 0 && rowIdx < candidates.Count && rowIdx != selectedIndex)
+            {
+                selectedIndex = rowIdx;
+                this.Invalidate();
+            }
+        }
+
+        private void CandidateForm_MouseDown(object sender, MouseEventArgs e)
+        {
+            int rowIdx = (e.Y - 30) / 32;
+            if (rowIdx >= 0 && rowIdx < candidates.Count)
+            {
+                selectedIndex = rowIdx;
+                string chosen = candidates[selectedIndex];
+                if (OnSelectCandidate != null)
+                {
+                    OnSelectCandidate(chosen);
+                }
             }
         }
 
@@ -175,10 +290,11 @@ namespace Banglish.UI
         {
             get
             {
-                CreateParams baseParams = base.CreateParams;
-                baseParams.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE (Prevents taking focus)
-                baseParams.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW
-                return baseParams;
+                CreateParams cp = base.CreateParams;
+                cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
+                cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW
+                cp.ClassStyle |= 0x00020000; // CS_DROPSHADOW (Native Apple/Windows soft drop shadow)
+                return cp;
             }
         }
     }
