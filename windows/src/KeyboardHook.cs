@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 
 namespace Banglish.Core
 {
@@ -101,7 +102,7 @@ namespace Banglish.Core
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
 
-                // Handle Space / Enter (Commit transliterated word)
+                // Handle Space / Enter (Commit transliterated word into active app)
                 if (key == System.Windows.Forms.Keys.Space || key == System.Windows.Forms.Keys.Return)
                 {
                     if (Buffer.Length > 0)
@@ -111,8 +112,9 @@ namespace Banglish.Core
                         Buffer.Clear();
                         TriggerBufferUpdate();
 
-                        // Commit translated text + separator
-                        SendUnicodeString(bangla + (key == System.Windows.Forms.Keys.Space ? " " : "\n"));
+                        string suffix = (key == System.Windows.Forms.Keys.Space) ? " " : "\n";
+                        SendUnicodeStringAsync(bangla + suffix);
+
                         if (TextCommitted != null) TextCommitted(bangla);
                         return (IntPtr)1;
                     }
@@ -170,6 +172,15 @@ namespace Banglish.Core
             string raw = Buffer.ToString();
             string bangla = BanglishEngine.Shared.Transliterate(raw);
             if (BufferChanged != null) BufferChanged(raw, bangla);
+        }
+
+        public static void SendUnicodeStringAsync(string str)
+        {
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                Thread.Sleep(15); // Pause 15ms to allow keyboard hook callback thread to exit
+                SendUnicodeString(str);
+            });
         }
 
         public static void SendUnicodeString(string str)

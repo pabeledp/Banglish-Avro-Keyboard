@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Windows.Forms;
 using Banglish.Core;
 using Banglish.UI;
@@ -45,8 +46,8 @@ namespace Banglish
                     candidateWindow.SetMode(enabled);
                 }
 
-                string msg = enabled ? "Banglish (বাংলা) Mode Enabled" : "English Mode Enabled";
-                trayIcon.ShowBalloonTip(1500, "Banglish Keyboard", msg + "\nPress F12 to switch anytime.", ToolTipIcon.Info);
+                string msg = enabled ? "Banglish (বাংলা) Mode Active" : "English Mode Active";
+                trayIcon.ShowBalloonTip(1500, "Banglish Keyboard", msg + "\nPress F12 anytime to switch.", ToolTipIcon.Info);
             };
 
             ContextMenuStrip contextMenu = new ContextMenuStrip();
@@ -57,7 +58,7 @@ namespace Banglish
             });
             ToolStripMenuItem testItem = new ToolStripMenuItem("Open Transliteration Tester", null, (s, e) => OpenTestWindow());
             ToolStripMenuItem aboutItem = new ToolStripMenuItem("About Banglish Windows", null, (s, e) => ShowAbout());
-            ToolStripMenuItem exitItem = new ToolStripMenuItem("Exit", null, (s, e) => ExitApp());
+            ToolStripMenuItem exitItem = new ToolStripMenuItem("Exit Banglish", null, (s, e) => ExitApp());
 
             contextMenu.Items.Add(toggleItem);
             contextMenu.Items.Add(testItem);
@@ -66,15 +67,30 @@ namespace Banglish
             contextMenu.Items.Add(new ToolStripSeparator());
             contextMenu.Items.Add(exitItem);
 
+            Icon appIcon = SystemIcons.Application;
+            try
+            {
+                string logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Banglish-Logo.png");
+                if (File.Exists(logoPath))
+                {
+                    using (Bitmap bmp = new Bitmap(logoPath))
+                    {
+                        IntPtr hIcon = bmp.GetHicon();
+                        appIcon = Icon.FromHandle(hIcon);
+                    }
+                }
+            }
+            catch {}
+
             trayIcon = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
+                Icon = appIcon,
                 ContextMenuStrip = contextMenu,
-                Text = "Banglish — Phonetic Bangla Keyboard for Windows",
+                Text = "Banglish — Native Bangla Keyboard for Windows",
                 Visible = true
             };
 
-            trayIcon.ShowBalloonTip(2500, "Banglish Keyboard Active", "Banglish is running in your System Tray.\nPress F12 to toggle between English and Bangla (বাংলা).", ToolTipIcon.Info);
+            trayIcon.ShowBalloonTip(2500, "Banglish Keyboard Running", "Banglish is active in System Tray.\nPress F12 to toggle Bangla (বাংলা) mode.", ToolTipIcon.Info);
 
             hook.Start();
         }
@@ -84,21 +100,22 @@ namespace Banglish
             Form testForm = new Form
             {
                 Text = "Banglish Windows Transliteration Tester",
-                Size = new Size(500, 350),
+                Size = new Size(520, 360),
                 StartPosition = FormStartPosition.CenterScreen
             };
 
-            Label lblIn = new Label { Text = "Type Banglish Phonetic Text:", Location = new Point(15, 15), AutoSize = true };
-            TextBox txtIn = new TextBox { Location = new Point(15, 35), Width = 450, Font = new Font("Consolas", 11f) };
-            Label lblOut = new Label { Text = "Bangla Transliterated Output:", Location = new Point(15, 80), AutoSize = true };
+            Label lblIn = new Label { Text = "Type Banglish Phonetic Text:", Location = new Point(15, 15), AutoSize = true, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+            TextBox txtIn = new TextBox { Location = new Point(15, 38), Width = 470, Font = new Font("Consolas", 11f) };
+            Label lblOut = new Label { Text = "Bangla Transliterated Output:", Location = new Point(15, 85), AutoSize = true, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
             TextBox txtOut = new TextBox
             {
-                Location = new Point(15, 100),
-                Width = 450,
-                Height = 160,
+                Location = new Point(15, 110),
+                Width = 470,
+                Height = 180,
                 Multiline = true,
                 ReadOnly = true,
-                Font = new Font("Nirmala UI", 14f, FontStyle.Bold)
+                Font = new Font("Nirmala UI", 15f, FontStyle.Bold),
+                BackColor = Color.White
             };
 
             txtIn.TextChanged += (s, e) =>
