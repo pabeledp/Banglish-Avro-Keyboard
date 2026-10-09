@@ -6,8 +6,8 @@
   <p><strong>100% Native Bangla Phonetic Input Method Editor for macOS</strong><br>Built natively for Apple Silicon (M1/M2/M3/M4/M5) and Intel Macs</p>
   
   <p>
-    <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/Banglish_Installer.dmg">
-      <img src="https://img.shields.io/badge/Download%20for%20macOS-Banglish__Installer.dmg-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish for macOS">
+    <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish_Installer.dmg">
+      <img src="https://img.shields.io/badge/Download%20for%20macOS-Always%20Latest%20Version-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish for macOS (Always Latest Version)">
     </a>
   </p>
 
@@ -97,6 +97,23 @@ Banglish implements the familiar Avro Phonetic scheme:
 ### Shortcuts
 * `⌥ + Space` (Option + Space): Toggle between **Bangla** and **English** passthrough mode.
 * `Ctrl + Space`: Cycle between active macOS input sources.
+
+---
+
+## Releases & Older Versions
+
+The primary download button at the top of this repository permanently provides the latest release. If you wish to download a previous or classic version:
+
+<p>
+  <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases">
+    <img src="https://img.shields.io/badge/Browse%20All%20Releases-Download%20Older%20Versions-000000?style=for-the-badge&logo=github&logoColor=white" alt="Download Older Versions">
+  </a>
+</p>
+
+| Version | Release Highlights | Download Link |
+| :--- | :--- | :--- |
+| **v1.0.001** *(Latest)* | Smart Word Suggestions, Dark Green & White Theme, Auto Reph/Ro-fola | [Banglish_Installer.dmg](https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/download/v1.0.001/Banglish_Installer.dmg) |
+| **v1.0.0** *(Classic)* | 100% Native Pure Swift Avro Engine (Direct typing without suggestions popup) | [Banglish v1.0.0](https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/tag/v1.0.0) |
 
 ---
 
