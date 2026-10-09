@@ -168,33 +168,33 @@ namespace Banglish.UI
             btnStart.Click += (s, e) => this.Close();
             this.Controls.Add(btnStart);
 
-            // Developer Credits: FramEmpire (www.framempire.com) & A M Pabel (www.ampabel.com)
+            // Developer Credits: FramEmpire & A M Pabel (Subtle, small, muted)
             Panel pnlCredits = new Panel
             {
-                Size = new Size(500, 26),
-                Location = new Point((this.Width - 500) / 2, 480),
+                Size = new Size(500, 24),
+                Location = new Point((this.Width - 500) / 2, 484),
                 BackColor = Color.Transparent
             };
 
             Label lblCrafted = new Label
             {
                 Text = "Crafted with ❤️ by",
-                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9f, FontStyle.Regular),
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 8.5f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(148, 163, 184),
                 AutoSize = true,
-                Location = new Point(70, 4)
+                Location = new Point(110, 3)
             };
 
             LinkLabel lnkCompany = new LinkLabel
             {
                 Text = "FramEmpire",
-                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9.5f, FontStyle.Bold),
-                LinkColor = Color.FromArgb(5, 150, 105),
-                ActiveLinkColor = Color.FromArgb(4, 120, 87),
-                VisitedLinkColor = Color.FromArgb(5, 150, 105),
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 8.5f, FontStyle.Regular),
+                LinkColor = Color.FromArgb(148, 163, 184),
+                ActiveLinkColor = Color.FromArgb(100, 116, 139),
+                VisitedLinkColor = Color.FromArgb(148, 163, 184),
                 LinkBehavior = LinkBehavior.HoverUnderline,
                 AutoSize = true,
-                Location = new Point(lblCrafted.Right + 3, 4),
+                Location = new Point(lblCrafted.Right + 3, 3),
                 Cursor = Cursors.Hand
             };
             lnkCompany.LinkClicked += (s, e) =>
@@ -205,22 +205,22 @@ namespace Banglish.UI
             Label lblDivider = new Label
             {
                 Text = "•",
-                Font = new Font("Segoe UI", 9f),
+                Font = new Font("Segoe UI", 8f),
                 ForeColor = Color.FromArgb(203, 213, 225),
                 AutoSize = true,
-                Location = new Point(lnkCompany.Right + 5, 4)
+                Location = new Point(lnkCompany.Right + 3, 3)
             };
 
             LinkLabel lnkAuthor = new LinkLabel
             {
                 Text = "A M Pabel",
-                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9.5f, FontStyle.Bold),
-                LinkColor = Color.FromArgb(15, 23, 42),
-                ActiveLinkColor = Color.FromArgb(5, 150, 105),
-                VisitedLinkColor = Color.FromArgb(15, 23, 42),
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 8.5f, FontStyle.Regular),
+                LinkColor = Color.FromArgb(148, 163, 184),
+                ActiveLinkColor = Color.FromArgb(100, 116, 139),
+                VisitedLinkColor = Color.FromArgb(148, 163, 184),
                 LinkBehavior = LinkBehavior.HoverUnderline,
                 AutoSize = true,
-                Location = new Point(lblDivider.Right + 5, 4),
+                Location = new Point(lblDivider.Right + 3, 3),
                 Cursor = Cursors.Hand
             };
             lnkAuthor.LinkClicked += (s, e) =>

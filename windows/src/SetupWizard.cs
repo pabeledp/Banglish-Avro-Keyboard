@@ -133,16 +133,16 @@ namespace Banglish.Setup
                 }
             };
 
-            // 1. Far Left Credit: FramEmpire (www.framempire.com)
+            // 1. Far Left Credit: FramEmpire (subtle, small, muted)
             LinkLabel lnkCompany = new LinkLabel
             {
                 Text = "FramEmpire",
-                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 10f, FontStyle.Bold),
-                LinkColor = Color.FromArgb(5, 150, 105),
-                ActiveLinkColor = Color.FromArgb(4, 120, 87),
-                VisitedLinkColor = Color.FromArgb(5, 150, 105),
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 8.5f, FontStyle.Regular),
+                LinkColor = Color.FromArgb(148, 163, 184), // Slate-400 subtle gray
+                ActiveLinkColor = Color.FromArgb(100, 116, 139),
+                VisitedLinkColor = Color.FromArgb(148, 163, 184),
                 LinkBehavior = LinkBehavior.HoverUnderline,
-                Location = new Point(24, 26),
+                Location = new Point(24, 28),
                 AutoSize = true,
                 Cursor = Cursors.Hand
             };
@@ -152,14 +152,14 @@ namespace Banglish.Setup
             };
             pnlFooter.Controls.Add(lnkCompany);
 
-            // 2. Far Right Credit: A M Pabel (www.ampabel.com)
+            // 2. Far Right Credit: A M Pabel (subtle, small, muted)
             LinkLabel lnkAuthor = new LinkLabel
             {
                 Text = "A M Pabel",
-                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 10f, FontStyle.Bold),
-                LinkColor = Color.FromArgb(51, 65, 85),
-                ActiveLinkColor = Color.FromArgb(5, 150, 105),
-                VisitedLinkColor = Color.FromArgb(51, 65, 85),
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 8.5f, FontStyle.Regular),
+                LinkColor = Color.FromArgb(148, 163, 184), // Slate-400 subtle gray
+                ActiveLinkColor = Color.FromArgb(100, 116, 139),
+                VisitedLinkColor = Color.FromArgb(148, 163, 184),
                 LinkBehavior = LinkBehavior.HoverUnderline,
                 AutoSize = true,
                 Cursor = Cursors.Hand
@@ -168,7 +168,7 @@ namespace Banglish.Setup
             {
                 try { System.Diagnostics.Process.Start("https://www.ampabel.com"); } catch {}
             };
-            lnkAuthor.Location = new Point(this.Width - 110, 26);
+            lnkAuthor.Location = new Point(this.Width - 95, 28);
             pnlFooter.Controls.Add(lnkAuthor);
 
             // 3. Centered Action Buttons (Back, Next, Cancel)
