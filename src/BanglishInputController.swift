@@ -253,20 +253,53 @@ class BanglishInputController: IMKInputController {
 
     private func cursorRect(for client: any IMKTextInput) -> NSRect {
         var rect = NSRect.zero
-        let marked = client.markedRange()
-        let range = (marked.location != NSNotFound && marked.length > 0) ? marked : NSRange(location: 0, length: 0)
-
         var actualRange = NSRange(location: NSNotFound, length: 0)
-        rect = client.firstRect(forCharacterRange: range, actualRange: &actualRange)
 
-        if rect.origin.x == 0 && rect.origin.y == 0 {
-            var lineRect = NSRect.zero
-            _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineRect)
-            if lineRect.origin.x != 0 || lineRect.origin.y != 0 {
-                rect = lineRect
-            }
+        // 1. Try marked range insertion point and bounding box
+        let marked = client.markedRange()
+        if marked.location != NSNotFound && marked.length > 0 {
+            // Insertion point at end of marked text
+            rect = client.firstRect(forCharacterRange: NSRange(location: marked.location + marked.length, length: 0), actualRange: &actualRange)
+            if isValidCursorRect(rect) { return rect }
+
+            // Full marked range
+            rect = client.firstRect(forCharacterRange: marked, actualRange: &actualRange)
+            if isValidCursorRect(rect) { return rect }
+
+            // Last character of marked text
+            rect = client.firstRect(forCharacterRange: NSRange(location: marked.location + marked.length - 1, length: 1), actualRange: &actualRange)
+            if isValidCursorRect(rect) { return rect }
         }
-        return rect
+
+        // 2. Try selected range (current caret / cursor position in any text box)
+        let selected = client.selectedRange()
+        if selected.location != NSNotFound {
+            rect = client.firstRect(forCharacterRange: selected, actualRange: &actualRange)
+            if isValidCursorRect(rect) { return rect }
+        }
+
+        // 3. Try insertion point (NSNotFound, 0)
+        rect = client.firstRect(forCharacterRange: NSRange(location: NSNotFound, length: 0), actualRange: &actualRange)
+        if isValidCursorRect(rect) { return rect }
+
+        // 4. Try lineHeightRectangle from attributes
+        var lineRect = NSRect.zero
+        _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineRect)
+        if isValidCursorRect(lineRect) { return lineRect }
+
+        if marked.location != NSNotFound {
+            _ = client.attributes(forCharacterIndex: Int(marked.location), lineHeightRectangle: &lineRect)
+            if isValidCursorRect(lineRect) { return lineRect }
+        }
+
+        return NSRect.zero
+    }
+
+    private func isValidCursorRect(_ rect: NSRect) -> Bool {
+        guard rect.origin.x > 10 && rect.origin.y > 10 else { return false }
+        guard rect.width > 0 || rect.height > 0 else { return false }
+        guard NSScreen.screens.contains(where: { NSPointInRect(rect.origin, $0.frame) }) else { return false }
+        return true
     }
 
     private func commitBuffer(client: any IMKTextInput) {

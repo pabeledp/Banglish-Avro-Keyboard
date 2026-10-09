@@ -168,30 +168,72 @@ public final class CandidateWindow: NSPanel {
             row.heightAnchor.constraint(equalToConstant: rowHeight).isActive = true
         }
 
-        // Determine window origin
-        var originX = cursorRect.origin.x
-        var originY = cursorRect.origin.y - panelHeight - 6
+        // Determine reference point and height
+        var refPoint: NSPoint
+        var refHeight: CGFloat = 22.0
+        let hasValidCursor = cursorRect.origin.x > 10 && cursorRect.origin.y > 10 && (cursorRect.width > 0 || cursorRect.height > 0)
 
-        // Screen boundary safety checks
-        let targetScreen = NSScreen.screens.first { NSPointInRect(cursorRect.origin, $0.frame) } ?? NSScreen.main ?? NSScreen.screens[0]
+        if hasValidCursor {
+            refPoint = cursorRect.origin
+            refHeight = max(20.0, cursorRect.height)
+        } else {
+            // Fallback: Locate active window or mouse
+            var detectedPoint: NSPoint? = nil
+            if let frontApp = NSWorkspace.shared.frontmostApplication,
+               let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] {
+                for win in windowList {
+                    let pid = win[kCGWindowOwnerPID as String] as? pid_t
+                    let layer = win[kCGWindowLayer as String] as? Int ?? -1
+                    if pid == frontApp.processIdentifier && layer == 0 {
+                        if let boundsDict = win[kCGWindowBounds as String] as? [String: Any],
+                           let winX = boundsDict["X"] as? CGFloat,
+                           let winY = boundsDict["Y"] as? CGFloat,
+                           let winW = boundsDict["Width"] as? CGFloat,
+                           let winH = boundsDict["Height"] as? CGFloat {
+                            let screenH = NSScreen.main?.frame.height ?? 1080
+                            let cocoaWinY = screenH - (winY + winH)
+                            let winRect = NSRect(x: winX, y: cocoaWinY, width: winW, height: winH)
+
+                            let mouseLoc = NSEvent.mouseLocation
+                            if NSPointInRect(mouseLoc, winRect) {
+                                detectedPoint = mouseLoc
+                            } else {
+                                detectedPoint = NSPoint(x: winRect.midX - (panelWidth / 2), y: winRect.minY + 60)
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+            refPoint = detectedPoint ?? NSEvent.mouseLocation
+        }
+
+        let targetScreen = NSScreen.screens.first { NSPointInRect(refPoint, $0.frame) } ?? NSScreen.main ?? NSScreen.screens[0]
         let visibleFrame = targetScreen.visibleFrame
 
-        // If cursor rect is 0 (app didn't provide coordinates), position near mouse
-        if cursorRect.origin.x == 0 && cursorRect.origin.y == 0 {
-            let mouseLoc = NSEvent.mouseLocation
-            originX = mouseLoc.x + 10
-            originY = mouseLoc.y - panelHeight - 10
+        var originX = refPoint.x
+        // Default: directly below the text / input box
+        var originY = refPoint.y - panelHeight - 6
+
+        // If below screen, position directly ABOVE the text / input box
+        if originY < visibleFrame.minY {
+            originY = refPoint.y + refHeight + 6
         }
 
-        if originY < visibleFrame.minY {
-            // Position above cursor if near bottom
-            originY = cursorRect.origin.y + cursorRect.height + 6
-        }
+        // Clamp horizontally within screen
         if originX + panelWidth > visibleFrame.maxX {
             originX = visibleFrame.maxX - panelWidth - 8
         }
         if originX < visibleFrame.minX {
             originX = visibleFrame.minX + 8
+        }
+
+        // Final vertical safety bounds
+        if originY + panelHeight > visibleFrame.maxY {
+            originY = visibleFrame.maxY - panelHeight - 8
+        }
+        if originY < visibleFrame.minY {
+            originY = visibleFrame.minY + 8
         }
 
         setContentSize(NSSize(width: panelWidth, height: panelHeight))

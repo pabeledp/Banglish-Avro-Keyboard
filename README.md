@@ -7,7 +7,7 @@
   
   <p>
     <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg">
-      <img src="https://img.shields.io/badge/Download%20for%20macOS-Always%20Latest%20Version-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish for macOS (Always Latest Version)">
+      <img src="https://img.shields.io/badge/Download%20Banglish-macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish for macOS">
     </a>
   </p>
 
@@ -49,7 +49,7 @@ To ensure that Mac users continue to enjoy a seamless, future-proof Bengali typi
 ## Installation
 
 ### Step 1: Install
-Download and open **`Banglish-v1.0.001.dmg`**, then double-click the installer.
+Download and open **`Banglish.dmg`**, then double-click the installer.
 
 ### Step 2: Log Out and Log Back In *(Required)*
 Log out of your macOS account and log back in (or restart your Mac).  
@@ -102,7 +102,7 @@ Banglish implements the familiar Avro Phonetic scheme:
 
 ## Releases & Older Versions
 
-The primary download button at the top of this repository provides the latest release (**v1.0.001**). If you wish to download a previous or classic version:
+The primary download button at the top of this repository provides the latest release. If you wish to download a previous or classic version:
 
 <p>
   <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases">
