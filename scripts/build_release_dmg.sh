@@ -3,12 +3,14 @@ set -e
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="Banglish"
+VERSION="1.0.001"
 BUILD_DIR="${PROJECT_DIR}/build"
 APP_DIR="${BUILD_DIR}/${APP_NAME}.app"
 PKG_DIR="${PROJECT_DIR}/build/pkg_root"
 DMG_STAGING="${PROJECT_DIR}/build/dmg_release"
-DMG_OUTPUT="${PROJECT_DIR}/${APP_NAME}_Installer.dmg"
-PKG_OUTPUT="${PROJECT_DIR}/${APP_NAME}_Installer.pkg"
+DMG_OUTPUT="${PROJECT_DIR}/${APP_NAME}-v${VERSION}.dmg"
+PKG_OUTPUT="${PROJECT_DIR}/${APP_NAME}-v${VERSION}.pkg"
+
 
 echo "=========================================="
 echo " Building ${APP_NAME} Release DMG"
@@ -213,7 +215,12 @@ hdiutil create \
     -format UDZO \
     "${DMG_OUTPUT}"
 
+cp "${DMG_OUTPUT}" "${PROJECT_DIR}/${APP_NAME}_Installer.dmg"
+cp "${PKG_OUTPUT}" "${PROJECT_DIR}/${APP_NAME}_Installer.pkg"
+
 echo "=========================================="
 echo " BUILD SUCCESS!"
-echo " DMG created at: ${DMG_OUTPUT}"
+echo " Versioned DMG: ${DMG_OUTPUT}"
+echo " Versioned PKG: ${PKG_OUTPUT}"
 echo "=========================================="
+
