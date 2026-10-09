@@ -35,11 +35,13 @@ class BanglishInputController: IMKInputController {
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
+        CandidateWindow.shared.hide()
         _ = currentClient(sender: sender)
         buffer.removeAll()
     }
 
     override func deactivateServer(_ sender: Any!) {
+        CandidateWindow.shared.hide()
         if let client = currentClient(sender: sender), !buffer.isEmpty {
             commitBuffer(client: client)
         }
@@ -81,7 +83,48 @@ class BanglishInputController: IMKInputController {
             return false
         }
 
-        // Space (keycode 49): commit converted word, let space pass through
+        // Number keys 1...9 to select candidate
+        let numberKeyCodes: [UInt16: Int] = [
+            18: 0, // 1
+            19: 1, // 2
+            20: 2, // 3
+            21: 3, // 4
+            23: 4, // 5
+            22: 5, // 6
+            26: 6, // 7
+            28: 7, // 8
+            25: 8  // 9
+        ]
+        if CandidateWindow.shared.isCandidateWindowVisible,
+           !modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option),
+           let idx = numberKeyCodes[keyCode] {
+            CandidateWindow.shared.selectIndex(idx)
+            return true
+        }
+
+        // Up Arrow (keycode 126): Move candidate selection up
+        if keyCode == 126 && CandidateWindow.shared.isCandidateWindowVisible {
+            CandidateWindow.shared.selectPrevious()
+            return true
+        }
+
+        // Down Arrow (keycode 125): Move candidate selection down
+        if keyCode == 125 && CandidateWindow.shared.isCandidateWindowVisible {
+            CandidateWindow.shared.selectNext()
+            return true
+        }
+
+        // Tab (keycode 48): Cycle candidates if popup is open
+        if keyCode == 48 {
+            if CandidateWindow.shared.isCandidateWindowVisible {
+                CandidateWindow.shared.selectNext()
+                return true
+            }
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            return false
+        }
+
+        // Space (keycode 49): commit selected candidate, let space pass through
         if keyCode == 49 {
             if !buffer.isEmpty {
                 commitBuffer(client: client)
@@ -89,10 +132,11 @@ class BanglishInputController: IMKInputController {
             return false
         }
 
-        // Return (keycode 36 or 76): commit word, let newline pass through
+        // Return (keycode 36 or 76): commit selected candidate directly
         if keyCode == 36 || keyCode == 76 {
             if !buffer.isEmpty {
                 commitBuffer(client: client)
+                return true
             }
             return false
         }
@@ -101,7 +145,13 @@ class BanglishInputController: IMKInputController {
         if keyCode == 51 {
             if !buffer.isEmpty {
                 buffer.removeLast()
-                updateMarkedText(client: client)
+                if buffer.isEmpty {
+                    CandidateWindow.shared.hide()
+                    clearMarkedText(client: client)
+                } else {
+                    updateMarkedText(client: client)
+                    updateCandidates(client: client)
+                }
                 return true
             }
             return false
@@ -109,6 +159,10 @@ class BanglishInputController: IMKInputController {
 
         // Escape (keycode 53)
         if keyCode == 53 {
+            if CandidateWindow.shared.isCandidateWindowVisible {
+                CandidateWindow.shared.hide()
+                return true
+            }
             if !buffer.isEmpty {
                 buffer.removeAll()
                 clearMarkedText(client: client)
@@ -117,14 +171,8 @@ class BanglishInputController: IMKInputController {
             return false
         }
 
-        // Tab (keycode 48)
-        if keyCode == 48 {
-            if !buffer.isEmpty { commitBuffer(client: client) }
-            return false
-        }
-
-        // Arrows (123...126)
-        if (123...126).contains(keyCode) {
+        // Left / Right Arrows (123, 124)
+        if keyCode == 123 || keyCode == 124 {
             if !buffer.isEmpty { commitBuffer(client: client) }
             return false
         }
@@ -132,9 +180,10 @@ class BanglishInputController: IMKInputController {
         // Full stop / Daari (.)
         if char == "." {
             if !buffer.isEmpty {
-                let converted = engine.transliterate(buffer)
-                client.insertText((converted + "।") as NSString, replacementRange: Self.emptyRange)
+                let chosen = CandidateWindow.shared.selectedCandidate() ?? engine.transliterate(buffer)
+                client.insertText((chosen + "।") as NSString, replacementRange: Self.emptyRange)
                 buffer.removeAll()
+                CandidateWindow.shared.hide()
                 return true
             } else {
                 client.insertText("।" as NSString, replacementRange: Self.emptyRange)
@@ -149,6 +198,7 @@ class BanglishInputController: IMKInputController {
 
         buffer.append(char)
         updateMarkedText(client: client)
+        updateCandidates(client: client)
         return true
     }
 
@@ -176,6 +226,7 @@ class BanglishInputController: IMKInputController {
     }
 
     private func clearMarkedText(client: any IMKTextInput) {
+        CandidateWindow.shared.hide()
         let marked = client.markedRange()
         let replaceRange = (marked.location != NSNotFound && marked.length > 0) ? marked : Self.emptyRange
         client.setMarkedText(
@@ -185,19 +236,57 @@ class BanglishInputController: IMKInputController {
         )
     }
 
+    private func updateCandidates(client: any IMKTextInput) {
+        guard !buffer.isEmpty else {
+            CandidateWindow.shared.hide()
+            return
+        }
+
+        let candidates = BanglishDictionary.shared.candidates(for: buffer)
+        let rect = cursorRect(for: client)
+
+        CandidateWindow.shared.show(candidates: candidates, near: rect) { [weak self, weak client] chosenCandidate in
+            guard let self = self, let client = client else { return }
+            self.commitText(chosenCandidate, client: client)
+        }
+    }
+
+    private func cursorRect(for client: any IMKTextInput) -> NSRect {
+        var rect = NSRect.zero
+        let marked = client.markedRange()
+        let range = (marked.location != NSNotFound && marked.length > 0) ? marked : NSRange(location: 0, length: 0)
+
+        var actualRange = NSRange(location: NSNotFound, length: 0)
+        rect = client.firstRect(forCharacterRange: range, actualRange: &actualRange)
+
+        if rect.origin.x == 0 && rect.origin.y == 0 {
+            var lineRect = NSRect.zero
+            _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineRect)
+            if lineRect.origin.x != 0 || lineRect.origin.y != 0 {
+                rect = lineRect
+            }
+        }
+        return rect
+    }
+
     private func commitBuffer(client: any IMKTextInput) {
         guard !buffer.isEmpty else { return }
-        let converted = engine.transliterate(buffer)
+        let textToCommit = CandidateWindow.shared.selectedCandidate() ?? engine.transliterate(buffer)
+        commitText(textToCommit, client: client)
+    }
+
+    private func commitText(_ text: String, client: any IMKTextInput) {
         let marked = client.markedRange()
         let replaceRange = (marked.location != NSNotFound && marked.length > 0) ? marked : Self.emptyRange
-        client.insertText(converted as NSString, replacementRange: replaceRange)
+        client.insertText(text as NSString, replacementRange: replaceRange)
         buffer.removeAll()
+        CandidateWindow.shared.hide()
     }
 
     // MARK: - Menu Bar
     override func menu() -> NSMenu! {
         let menu = NSMenu()
-        let item1 = NSMenuItem(title: "🇧🇩 Banglish 1.0", action: nil, keyEquivalent: "")
+        let item1 = NSMenuItem(title: "🇧🇩 Banglish 1.0.001", action: nil, keyEquivalent: "")
         item1.isEnabled = false
         menu.addItem(item1)
         menu.addItem(NSMenuItem.separator())

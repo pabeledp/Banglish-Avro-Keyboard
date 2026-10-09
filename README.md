@@ -39,6 +39,7 @@ The classic **iAvro** project served Mac users for years, but has remained unmai
 To ensure that Mac users continue to enjoy a seamless, future-proof Bengali typing experience, we built **Banglish** as an independent, 100% native modern alternative specifically for macOS:
 
 * **100% Pure Swift & InputMethodKit:** Zero third-party C or Rust dependencies. Runs directly as an official macOS input method.
+* **Smart Word Suggestions & Candidate Panel:** Instant suggestions for complex conjuncts (যুক্তবর্ণ), vowel lengths (ি/ী, ু/ূ), and orthographic variants with keyboard & mouse selection.
 * **Apple Silicon Optimized:** Instant launch, zero CPU overhead at idle, and completely free of Rosetta.
 * **Creative & Pro Apps Ready:** Works smoothly in Adobe After Effects, Photoshop, Illustrator, Premiere Pro, Figma, Final Cut Pro, Chrome, Safari, Notes, and Terminal.
 * **Completely Private & Offline:** No internet permissions, no data collection, and zero telemetry.

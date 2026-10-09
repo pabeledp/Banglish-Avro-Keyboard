@@ -29,6 +29,8 @@ SDK_PATH="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
     -framework InputMethodKit \
     "${PROJECT_DIR}/src/AvroData.swift" \
     "${PROJECT_DIR}/src/BanglishEngine.swift" \
+    "${PROJECT_DIR}/src/BanglishDictionary.swift" \
+    "${PROJECT_DIR}/src/CandidateWindow.swift" \
     "${PROJECT_DIR}/src/BanglishInputController.swift" \
     "${PROJECT_DIR}/src/AppUI.swift" \
     "${PROJECT_DIR}/src/main.swift" \
@@ -62,7 +64,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>1.0.001</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleSupportedPlatforms</key>
@@ -102,23 +104,26 @@ mkdir -p "${APP_DIR}/Contents/Resources/bn.lproj"
 cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/English.lproj/InfoPlist.strings"
 "CFBundleName" = "Banglish";
 "CFBundleDisplayName" = "Banglish";
-"CFBundleShortVersionString" = "Banglish version 1.0";
-"CFBundleGetInfoString" = "Banglish 1.0, Bangla Phonetic Keyboard";
+"CFBundleShortVersionString" = "Banglish version 1.0.001";
+"CFBundleGetInfoString" = "Banglish 1.0.001, Bangla Phonetic Keyboard with Word Suggestions";
 "NSHumanReadableCopyright" = "Copyright © 2026 Banglish";
 STRINGS
 
 cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/bn.lproj/InfoPlist.strings"
 "CFBundleName" = "বাংলিশ";
 "CFBundleDisplayName" = "বাংলিশ (Banglish)";
-"CFBundleShortVersionString" = "বাংলিশ সংস্করণ ১.০";
-"CFBundleGetInfoString" = "বাংলিশ ১.০, বাংলা ফোনেটিক কীবোর্ড";
+"CFBundleShortVersionString" = "বাংলিশ সংস্করণ ১.০.০০১";
+"CFBundleGetInfoString" = "বাংলিশ ১.০.০০১, বাংলা ফোনেটিক কীবোর্ড ও শব্দ সাজেশন";
 "NSHumanReadableCopyright" = "কপিরাইট © ২০২৬ বাংলিশ";
 STRINGS
 
-# 5. Resources (icons)
+# 5. Resources (icons & words dictionary)
 cp "${PROJECT_DIR}/Resources/AppIcon.icns" "${APP_DIR}/Contents/Resources/"
 cp "${PROJECT_DIR}/Resources/MenuIcon.png" "${APP_DIR}/Contents/Resources/"
 cp "${PROJECT_DIR}/Resources/MenuIcon.tiff" "${APP_DIR}/Contents/Resources/"
+if [ -f "${PROJECT_DIR}/Resources/words.txt" ]; then
+    cp "${PROJECT_DIR}/Resources/words.txt" "${APP_DIR}/Contents/Resources/"
+fi
 
 # 6. Codesign ad-hoc & strip xattr
 xattr -cr "${APP_DIR}"
