@@ -80,12 +80,21 @@ namespace Banglish
             Icon appIcon = SystemIcons.Application;
             try
             {
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
                 string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
                 if (File.Exists(icoPath))
                 {
                     appIcon = new Icon(icoPath, 32, 32);
                 }
                 else
+                {
+                    using (Stream s = asm.GetManifestResourceStream("app.ico"))
+                    {
+                        if (s != null) appIcon = new Icon(s, 32, 32);
+                    }
+                }
+
+                if (appIcon == SystemIcons.Application)
                 {
                     string logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Banglish-Logo.png");
                     if (File.Exists(logoPath))
@@ -97,6 +106,21 @@ namespace Banglish
                             IntPtr hIcon = bmp.GetHicon();
                             appIcon = (Icon)Icon.FromHandle(hIcon).Clone();
                             DestroyIcon(hIcon);
+                        }
+                    }
+                    else
+                    {
+                        using (Stream s = asm.GetManifestResourceStream("Banglish-Logo.png"))
+                        {
+                            if (s != null)
+                            {
+                                using (Bitmap bmp = new Bitmap(s))
+                                {
+                                    IntPtr hIcon = bmp.GetHicon();
+                                    appIcon = (Icon)Icon.FromHandle(hIcon).Clone();
+                                    DestroyIcon(hIcon);
+                                }
+                            }
                         }
                     }
                 }

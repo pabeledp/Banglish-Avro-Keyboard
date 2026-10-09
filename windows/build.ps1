@@ -9,7 +9,7 @@ Write-Host "========================================================" -Foregroun
 Write-Host "1. Compiling Banglish.exe (Main Application)..." -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Cyan
 
-& $csc /nologo /target:winexe /win32icon:app.ico /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Core.dll src\AvroData.cs src\BanglishEngine.cs src\BanglishDictionary.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\WelcomeForm.cs src\TrayApp.cs
+& $csc /nologo /target:winexe /win32icon:app.ico /resource:Banglish-Logo.png /resource:app.ico /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Core.dll src\AvroData.cs src\BanglishEngine.cs src\BanglishDictionary.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\WelcomeForm.cs src\TrayApp.cs
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "`nFailed to build Banglish.exe!" -ForegroundColor Red
@@ -20,7 +20,7 @@ Write-Host "`n========================================================" -Foregro
 Write-Host "2. Compiling Banglish-Setup.exe (Setup Wizard)..." -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Cyan
 
-& $csc /nologo /target:winexe /win32icon:app.ico /out:Banglish-Setup.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\SetupWizard.cs
+& $csc /nologo /target:winexe /win32icon:app.ico /resource:Banglish-Logo.png /resource:app.ico /out:Banglish-Setup.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\SetupWizard.cs
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`nBUILD SUCCESSFUL!" -ForegroundColor Green

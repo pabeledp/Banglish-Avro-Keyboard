@@ -59,6 +59,7 @@ namespace Banglish.UI
 
             try
             {
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
                 string logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Banglish-Logo.png");
                 if (File.Exists(logoPath))
                 {
@@ -68,12 +69,28 @@ namespace Banglish.UI
                         logoImg = new Bitmap(ms);
                     }
                 }
+                else
+                {
+                    using (Stream s = asm.GetManifestResourceStream("Banglish-Logo.png"))
+                    {
+                        if (s != null) logoImg = new Bitmap(s);
+                    }
+                }
+
                 string icoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
                 if (File.Exists(icoPath))
                 {
                     this.Icon = new Icon(icoPath);
                 }
-                else if (logoImg != null)
+                else
+                {
+                    using (Stream s = asm.GetManifestResourceStream("app.ico"))
+                    {
+                        if (s != null) this.Icon = new Icon(s);
+                    }
+                }
+
+                if (this.Icon == null && logoImg != null)
                 {
                     using (Bitmap b = new Bitmap(logoImg, 32, 32))
                     {
