@@ -21,7 +21,8 @@ namespace Banglish.Core
             "মানুষ", "মানুস", "দেশ", "দেশের", "বিপদ", "বিপদ্", "হঠাৎ", "হঠাত",
             "সৃষ্টি", "সৃষ্টী", "অনুষ্ঠান", "পুষ্প", "অঙ্ক", "অংক", "সঙ্গ", "সংগ",
             "ভালো", "ভাল", "কেমন", "আছো", "আছেন", "ধন্যবাদ", "স্বাগতম",
-            "হাফেজ", "হাফেয", "নামাজ", "নামায", "কাগজ", "কাগয", "জাহাজ", "জাহায"
+            "হাফেজ", "হাফেয", "নামাজ", "নামায", "কাগজ", "কাগয", "জাহাজ", "জাহায",
+            "ইউআই", "জিইউআই", "সফটওয়্যার", "হার্ডওয়্যার", "ফার্মওয়্যার", "ওয়েবসাইট", "কম্পিউটার"
         };
 
         public static readonly BanglishDictionary Shared = new BanglishDictionary();
@@ -216,6 +217,64 @@ namespace Banglish.Core
                 if (!string.IsNullOrEmpty(transO)) variants.Add(transO);
             }
 
+            // Rule P: Y, Ja-fola (্য), Antostho-A (য়), Vowel (আই/ই) & W/War (ওয়্যার) variants
+            // e.g. "iuai" -> "ইউয়াই" -> "ইউআই"
+            // "softowar" / "software" -> "সফটওয়্যার"
+            List<string> curP = new List<string>(variants);
+            curP.Add(primary);
+            foreach (var w in curP)
+            {
+                // 1. য় <-> ্য (y used as ya-fola vs antostho-a)
+                // e.g. ক্য <-> কয়, ব্য <-> বয়, ন্য <-> নয়
+                if (w.IndexOf("্য") >= 0) variants.Add(w.Replace("্য", "য়"));
+                if (w.IndexOf("য়") >= 0) variants.Add(w.Replace("য়", "্য"));
+
+                // 2. য় <-> আ / আই / ই
+                // e.g. "ইউয়াই" -> "ইউআই", "দেয়া" -> "দয়া" / "দেওয়া"
+                if (w.IndexOf("য়াই") >= 0) variants.Add(w.Replace("য়াই", "আই"));
+                if (w.IndexOf("য়ি") >= 0) variants.Add(w.Replace("য়ি", "ই"));
+                if (w.IndexOf("ইয়া") >= 0) variants.Add(w.Replace("ইয়া", "িয়া"));
+                if (w.IndexOf("য়া") >= 0) variants.Add(w.Replace("য়া", "আ"));
+
+                // 3. তও <-> ত্ব / ত্ব <-> তও (e.g. সফতওার -> সফটওয়্যার, কতওয়াল -> কোতোয়াল)
+                if (w.IndexOf("তও") >= 0) variants.Add(w.Replace("তও", "ত্ব"));
+                if (w.IndexOf("ত্ব") >= 0) variants.Add(w.Replace("ত্ব", "তও"));
+
+                // 4. ওার / ও্যার / ত্বার / তওার <-> ওয়্যার (e.g. সফতওার / সফত্বার / সফটও্যার -> সফটওয়্যার)
+                if (w.IndexOf("তওার") >= 0) variants.Add(w.Replace("তওার", "টওয়্যার"));
+                if (w.IndexOf("ত্বার") >= 0) variants.Add(w.Replace("ত্বার", "টওয়্যার"));
+                if (w.IndexOf("ত্বারে") >= 0) variants.Add(w.Replace("ত্বারে", "টওয়্যার"));
+                if (w.IndexOf("ওার") >= 0) variants.Add(w.Replace("ওার", "ওয়্যার"));
+                if (w.IndexOf("ও্যার") >= 0) variants.Add(w.Replace("ও্যার", "ওয়্যার"));
+                if (w.IndexOf("অ্যার") >= 0) variants.Add(w.Replace("অ্যার", "ওয়্যার"));
+                if (w.IndexOf("ওয়ার") >= 0) variants.Add(w.Replace("ওয়ার", "ওয়্যার"));
+
+                // 5. ত <-> ট before ওয়্যার / ্য (e.g. সফতওয়্যার -> সফটওয়্যার)
+                if (w.IndexOf("ফত") >= 0) variants.Add(w.Replace("ফত", "ফট"));
+            }
+
+            // Also check phonetic transliteration variations of rawInput for 'y' and 'w'
+            if (rawInput.IndexOf('y') >= 0)
+            {
+                // 'y' as 'Y' (forces য়)
+                string transY = BanglishEngine.Shared.Transliterate(rawInput.Replace("y", "Y"));
+                if (!string.IsNullOrEmpty(transY)) variants.Add(transY);
+                // 'y' as 'Z' (forces ্য)
+                string transZ = BanglishEngine.Shared.Transliterate(rawInput.Replace("y", "Z"));
+                if (!string.IsNullOrEmpty(transZ)) variants.Add(transZ);
+            }
+            if (rawInput.IndexOf("war") >= 0 || rawInput.IndexOf("wer") >= 0 || rawInput.IndexOf("ware") >= 0)
+            {
+                // war -> wZar -> ওয়্যার
+                string modInput = rawInput.Replace("software", "softwZar").Replace("softowar", "softwZar").Replace("softwer", "softwZar").Replace("ware", "wZar");
+                string transW = BanglishEngine.Shared.Transliterate(modInput);
+                if (!string.IsNullOrEmpty(transW))
+                {
+                    variants.Add(transW);
+                    if (transW.IndexOf("ফত") >= 0) variants.Add(transW.Replace("ফত", "ফট"));
+                }
+            }
+
             // Rule H: ং <-> ঙ
             List<string> curH = new List<string>(variants);
             curH.Add(primary);
@@ -292,44 +351,45 @@ namespace Banglish.Core
             }
 
             // Prioritize dictionary confirmed variants:
-            List<string> cbConfirmed = new List<string>();
-            List<string> otherConfirmed = new List<string>();
-            List<string> unconfirmed = new List<string>();
+            List<string> confirmedList = new List<string>();
+            List<string> unconfirmedList = new List<string>();
 
             lock (_lock)
             {
                 foreach (var v in variants)
                 {
+                    if (string.IsNullOrEmpty(v)) continue;
                     if (_words.Contains(v))
                     {
-                        if (v.IndexOf('ঁ') >= 0) cbConfirmed.Add(v);
-                        else otherConfirmed.Add(v);
+                        confirmedList.Add(v);
                     }
                     else
                     {
-                        unconfirmed.Add(v);
+                        unconfirmedList.Add(v);
                     }
                 }
             }
 
-            // Confirmed Chandrabindu words first (after primary)
-            foreach (var v in cbConfirmed)
+            // Confirmed dictionary words come first (e.g. ইউআই, সফটওয়্যার, হাফেজ)
+            foreach (var v in confirmedList)
             {
-                if (result.Count >= 6) break;
+                if (result.Count >= 7) break;
                 addCandidate(v);
             }
 
-            // Confirmed dictionary words (e.g. হাফেজ)
-            foreach (var v in otherConfirmed)
+            // Other unconfirmed phonetic variants (sort by length and distance from primary)
+            foreach (var v in unconfirmedList)
             {
-                if (result.Count >= 6) break;
+                if (result.Count >= 7) break;
+                // Avoid too many random chandrabindu variants if unconfirmed
+                if (v.IndexOf('ঁ') >= 0 && !confirmedList.Contains(v)) continue;
                 addCandidate(v);
             }
 
-            // Other unconfirmed phonetic variants
-            foreach (var v in unconfirmed)
+            // If still room, allow remaining variants
+            foreach (var v in unconfirmedList)
             {
-                if (result.Count >= 6) break;
+                if (result.Count >= 7) break;
                 addCandidate(v);
             }
 
