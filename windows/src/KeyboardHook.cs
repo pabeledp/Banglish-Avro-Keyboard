@@ -1,9 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading;
 
 namespace Banglish.Core
 {
@@ -14,6 +12,8 @@ namespace Banglish.Core
         private const int WM_KEYUP = 0x0101;
         private const int WM_SYSKEYDOWN = 0x0104;
 
+        public static readonly IntPtr MAGIC_COOKIE = new IntPtr(0xBA991158);
+
         public delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
 
         private HookProc _proc;
@@ -21,10 +21,10 @@ namespace Banglish.Core
 
         public bool IsEnabled { get; set; }
         public StringBuilder Buffer { get; private set; }
+        private string _lastComposed = "";
 
-        public event Action<string, string> BufferChanged; // (rawBuffer, transliterated)
-        public event Action<bool> ModeToggled;             // (isEnabled)
-        public event Action<string> TextCommitted;         // (transliteratedText)
+        public event Action<string, string> BufferChanged;
+        public event Action<bool> ModeToggled;
 
         public KeyboardHook()
         {
@@ -57,18 +57,37 @@ namespace Banglish.Core
             }
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct KBDLLHOOKSTRUCT
+        {
+            public uint vkCode;
+            public uint scanCode;
+            public uint flags;
+            public uint time;
+            public UIntPtr dwExtraInfo;
+        }
+
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
             {
-                int vkCode = Marshal.ReadInt32(lParam);
-                System.Windows.Forms.Keys key = (System.Windows.Forms.Keys)vkCode;
+                KBDLLHOOKSTRUCT hookStruct = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
 
-                // F12 or Ctrl+Space to toggle Mode
+                // If key is injected by our own SendInput, pass it through immediately!
+                if (hookStruct.dwExtraInfo == (UIntPtr)0xBA991158 || (hookStruct.flags & 0x10) != 0)
+                {
+                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                }
+
+                System.Windows.Forms.Keys key = (System.Windows.Forms.Keys)hookStruct.vkCode;
+
+                // Toggle Key: F12
                 if (key == System.Windows.Forms.Keys.F12)
                 {
                     IsEnabled = !IsEnabled;
                     Buffer.Clear();
+                    _lastComposed = "";
+                    TriggerBufferUpdate();
                     if (ModeToggled != null) ModeToggled(IsEnabled);
                     return (IntPtr)1;
                 }
@@ -78,44 +97,53 @@ namespace Banglish.Core
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
 
-                // Handle Backspace
-                if (key == System.Windows.Forms.Keys.Back)
-                {
-                    if (Buffer.Length > 0)
-                    {
-                        Buffer.Remove(Buffer.Length - 1, 1);
-                        TriggerBufferUpdate();
-                        return (IntPtr)1;
-                    }
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // Handle Escape (Cancel composition)
-                if (key == System.Windows.Forms.Keys.Escape)
-                {
-                    if (Buffer.Length > 0)
-                    {
-                        Buffer.Clear();
-                        TriggerBufferUpdate();
-                        return (IntPtr)1;
-                    }
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // Handle Space / Enter (Commit transliterated word into active app)
+                // If user clicks Space or Enter: finalize the word
                 if (key == System.Windows.Forms.Keys.Space || key == System.Windows.Forms.Keys.Return)
                 {
                     if (Buffer.Length > 0)
                     {
-                        string raw = Buffer.ToString();
-                        string bangla = BanglishEngine.Shared.Transliterate(raw);
                         Buffer.Clear();
+                        _lastComposed = "";
                         TriggerBufferUpdate();
+                    }
+                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                }
 
-                        string suffix = (key == System.Windows.Forms.Keys.Space) ? " " : "\n";
-                        SendUnicodeStringAsync(bangla + suffix);
+                // Handle Backspace: remove last character and re-transliterate live
+                if (key == System.Windows.Forms.Keys.Back)
+                {
+                    if (Buffer.Length > 0)
+                    {
+                        int prevCount = _lastComposed.Length;
+                        Buffer.Remove(Buffer.Length - 1, 1);
 
-                        if (TextCommitted != null) TextCommitted(bangla);
+                        if (Buffer.Length > 0)
+                        {
+                            string newBangla = BanglishEngine.Shared.Transliterate(Buffer.ToString());
+                            ReplaceComposedText(prevCount, newBangla);
+                            _lastComposed = newBangla;
+                        }
+                        else
+                        {
+                            ReplaceComposedText(prevCount, "");
+                            _lastComposed = "";
+                        }
+
+                        TriggerBufferUpdate();
+                        return (IntPtr)1;
+                    }
+                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                }
+
+                // Handle Escape: clear active word
+                if (key == System.Windows.Forms.Keys.Escape)
+                {
+                    if (Buffer.Length > 0)
+                    {
+                        ReplaceComposedText(_lastComposed.Length, "");
+                        Buffer.Clear();
+                        _lastComposed = "";
+                        TriggerBufferUpdate();
                         return (IntPtr)1;
                     }
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
@@ -125,9 +153,15 @@ namespace Banglish.Core
                 char ch = GetCharFromKey(key);
                 if (ch != '\0')
                 {
+                    int prevCount = _lastComposed.Length;
                     Buffer.Append(ch);
+                    string newBangla = BanglishEngine.Shared.Transliterate(Buffer.ToString());
+
+                    ReplaceComposedText(prevCount, newBangla);
+                    _lastComposed = newBangla;
+
                     TriggerBufferUpdate();
-                    return (IntPtr)1;
+                    return (IntPtr)1; // Swallowed, because Bangla was typed live into the active app!
                 }
             }
 
@@ -170,27 +204,60 @@ namespace Banglish.Core
         private void TriggerBufferUpdate()
         {
             string raw = Buffer.ToString();
-            string bangla = BanglishEngine.Shared.Transliterate(raw);
+            string bangla = _lastComposed;
             if (BufferChanged != null) BufferChanged(raw, bangla);
         }
 
-        public static void SendUnicodeStringAsync(string str)
+        public static void ReplaceComposedText(int backspaceCount, string newText)
         {
-            ThreadPool.QueueUserWorkItem(_ =>
-            {
-                Thread.Sleep(15); // Pause 15ms to allow keyboard hook callback thread to exit
-                SendUnicodeString(str);
-            });
-        }
+            int totalInputs = (backspaceCount * 2) + (newText.Length * 2);
+            if (totalInputs == 0) return;
 
-        public static void SendUnicodeString(string str)
-        {
-            foreach (char c in str)
+            INPUT[] inputs = new INPUT[totalInputs];
+            int idx = 0;
+
+            // 1. Send Backspaces
+            for (int i = 0; i < backspaceCount; i++)
             {
-                INPUT[] inputs = new INPUT[2];
-                inputs[0] = new INPUT
+                inputs[idx++] = new INPUT
                 {
-                    type = 1, // INPUT_KEYBOARD
+                    type = 1,
+                    U = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = 0x08, // VK_BACK
+                            wScan = 0,
+                            dwFlags = 0,
+                            time = 0,
+                            dwExtraInfo = MAGIC_COOKIE
+                        }
+                    }
+                };
+                inputs[idx++] = new INPUT
+                {
+                    type = 1,
+                    U = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = 0x08,
+                            wScan = 0,
+                            dwFlags = 0x0002, // KEYEVENTF_KEYUP
+                            time = 0,
+                            dwExtraInfo = MAGIC_COOKIE
+                        }
+                    }
+                };
+            }
+
+            // 2. Send New Transliterated Unicode Characters
+            for (int i = 0; i < newText.Length; i++)
+            {
+                char c = newText[i];
+                inputs[idx++] = new INPUT
+                {
+                    type = 1,
                     U = new InputUnion
                     {
                         ki = new KEYBDINPUT
@@ -199,11 +266,11 @@ namespace Banglish.Core
                             wScan = (ushort)c,
                             dwFlags = 0x0004, // KEYEVENTF_UNICODE
                             time = 0,
-                            dwExtraInfo = IntPtr.Zero
+                            dwExtraInfo = MAGIC_COOKIE
                         }
                     }
                 };
-                inputs[1] = new INPUT
+                inputs[idx++] = new INPUT
                 {
                     type = 1,
                     U = new InputUnion
@@ -214,11 +281,26 @@ namespace Banglish.Core
                             wScan = (ushort)c,
                             dwFlags = 0x0004 | 0x0002, // KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
                             time = 0,
-                            dwExtraInfo = IntPtr.Zero
+                            dwExtraInfo = MAGIC_COOKIE
                         }
                     }
                 };
-                SendInput(2, inputs, Marshal.SizeOf(typeof(INPUT)));
+            }
+
+            uint sent = SendInput((uint)totalInputs, inputs, Marshal.SizeOf(typeof(INPUT)));
+            if (sent == 0)
+            {
+                // Fallback via keybd_event if SendInput is blocked
+                for (int i = 0; i < backspaceCount; i++)
+                {
+                    keybd_event(0x08, 0, 0, MAGIC_COOKIE);
+                    keybd_event(0x08, 0, 2, MAGIC_COOKIE);
+                }
+                foreach (char c in newText)
+                {
+                    keybd_event(0, (byte)c, 0x0004, MAGIC_COOKIE);
+                    keybd_event(0, (byte)c, 0x0004 | 0x0002, MAGIC_COOKIE);
+                }
             }
         }
 
@@ -244,24 +326,39 @@ namespace Banglish.Core
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
+        [DllImport("user32.dll")]
+        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, IntPtr dwExtraInfo);
+
         [StructLayout(LayoutKind.Sequential)]
-        private struct INPUT
+        public struct INPUT
         {
             public uint type;
             public InputUnion U;
         }
 
         [StructLayout(LayoutKind.Explicit)]
-        private struct InputUnion
+        public struct InputUnion
         {
             [FieldOffset(0)] public KEYBDINPUT ki;
+            [FieldOffset(0)] public MOUSEINPUT mi;
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct KEYBDINPUT
+        public struct KEYBDINPUT
         {
             public ushort wVk;
             public ushort wScan;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MOUSEINPUT
+        {
+            public int dx;
+            public int dy;
+            public uint mouseData;
             public uint dwFlags;
             public uint time;
             public IntPtr dwExtraInfo;
