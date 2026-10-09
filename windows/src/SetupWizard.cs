@@ -115,7 +115,20 @@ namespace Banglish.Setup
             btnNext.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
 
             btnBack = CreateNavButton("← পেছনে (Back)", pnlFooter.Width - 380, 14, 120, (s, e) => GoBack());
-            btnBack.Enabled = false;
+            Label lblSetupCredit = new Label
+            {
+                Text = "FramEmpire",
+                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
+                ForeColor = Color.FromArgb(148, 163, 184),
+                Location = new Point(24, 22),
+                AutoSize = true,
+                Cursor = Cursors.Hand
+            };
+            lblSetupCredit.Click += (s, e) =>
+            {
+                try { System.Diagnostics.Process.Start("https://github.com/pabeledp"); } catch {}
+            };
+            pnlFooter.Controls.Add(lblSetupCredit);
 
             pnlFooter.Controls.Add(btnCancel);
             pnlFooter.Controls.Add(btnNext);

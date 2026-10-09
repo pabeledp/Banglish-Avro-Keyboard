@@ -147,14 +147,31 @@ namespace Banglish.UI
                 ForeColor = Color.White,
                 BackColor = Color.FromArgb(5, 150, 105), // Emerald-600
                 FlatStyle = FlatStyle.Flat,
-                Size = new Size(240, 48),
-                Location = new Point((this.Width - 240) / 2, 430),
+                Size = new Size(240, 46),
+                Location = new Point((this.Width - 240) / 2, 425),
                 Cursor = Cursors.Hand
             };
             btnStart.FlatAppearance.BorderSize = 0;
             btnStart.FlatAppearance.MouseOverBackColor = Color.FromArgb(4, 120, 87);
             btnStart.Click += (s, e) => this.Close();
             this.Controls.Add(btnStart);
+
+            // Developer Credit
+            Label lblCredit = new Label
+            {
+                Text = "Crafted with ❤️ by FramEmpire",
+                Font = new Font("Creato Display", 9.5f, FontStyle.Regular),
+                ForeColor = Color.FromArgb(100, 116, 139),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Size = new Size(300, 22),
+                Location = new Point((this.Width - 300) / 2, 482),
+                Cursor = Cursors.Hand
+            };
+            lblCredit.Click += (s, e) =>
+            {
+                try { System.Diagnostics.Process.Start("https://github.com/pabeledp"); } catch {}
+            };
+            this.Controls.Add(lblCredit);
 
             this.Paint += WelcomeForm_Paint;
             this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width, this.Height, 20, 20));
