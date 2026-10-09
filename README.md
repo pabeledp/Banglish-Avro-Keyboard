@@ -1,15 +1,19 @@
-# Banglish — Native Avro Phonetic Bangla Keyboard for macOS
+# Banglish — Native Avro Phonetic Bangla Keyboard for macOS & Windows
 
 <div align="center">
   <img src="Banglish-Logo.png" alt="Banglish Logo" width="160">
   
-  <p><strong>100% Native Bangla Phonetic Input Method Editor for macOS</strong><br>Built natively for Apple Silicon (M1/M2/M3/M4/M5) and Intel Macs</p>
+  <p><strong>100% Native Bangla Phonetic Input Method Editor for macOS & Windows</strong><br>Built natively for Apple Silicon (M1/M2/M3/M4/M5), Intel Macs, and Windows 10 & 11</p>
   
   <p>
     <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg">
       <img src="https://img.shields.io/badge/Download%20Banglish-macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish for macOS">
     </a>
-    <a href="windows/README.md">
+    <!-- DIRECT DOWNLOAD LINK FOR WINDOWS -->
+    <!-- Always points to the latest installer: https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe -->
+    <!-- In future version updates, simply replace the 'windows/Banglish-Setup.exe' binary in this repo. -->
+    <!-- The download link below will always serve the latest Windows installer directly on click. -->
+    <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe">
       <img src="https://img.shields.io/badge/Download%20Banglish-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Banglish for Windows">
     </a>
   </p>
@@ -198,7 +202,7 @@ Banglish implements the standard Avro Phonetic scheme. Here is the complete, cle
 
 ## Releases & Older Versions
 
-The primary download button at the top of this repository provides the latest release. If you wish to download a previous or classic version:
+The primary download buttons at the top of this repository provide the latest releases for both macOS and Windows. If you wish to download a previous or classic version:
 
 <p>
   <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases">
@@ -206,10 +210,23 @@ The primary download button at the top of this repository provides the latest re
   </a>
 </p>
 
-| Version | Release Highlights | Direct Download |
-| :--- | :--- | :--- |
-| **v1.0.001** *(Latest)* | Smart Word Suggestions, Dark Green & White Theme, Auto Reph/Ro-fola | [Banglish-v1.0.001.dmg](https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/download/v1.0.001/Banglish-v1.0.001.dmg) |
-| **v1.0.0** *(Classic)* | 100% Native Pure Swift Avro Engine (Direct typing without suggestions popup) | [Banglish-v1.0.0.dmg](https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/download/v1.0.0/Banglish-v1.0.0.dmg) |
+<!-- 
+  ========================================================================
+  VERSION UPDATE & RELEASE MAINTENANCE GUIDE:
+  - Latest Windows installer direct link (top badge) always points to:
+    https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe
+  - When releasing a new version:
+    1. Overwrite 'windows/Banglish-Setup.exe' in this repo so the latest direct link automatically serves it.
+    2. Add the previous version to the table below as an archived standalone link (e.g., Banglish-Windows-Setup-v1.0.0.exe).
+    3. Update the table below with the new latest version and its release notes.
+  ========================================================================
+-->
+
+| Platform | Version | Release Highlights | Direct Download |
+| :--- | :--- | :--- | :--- |
+| **Windows** | **v1.0.0** *(Latest)* | Native C# Win32 Engine, Full Setup Wizard, System Tray, Live Suggestions, F12 switch | [Banglish-Setup.exe (Latest)](https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe) |
+| **macOS** | **v1.0.001** *(Latest)* | Smart Word Suggestions, Dark Green & White Theme, Auto Reph/Ro-fola | [Banglish-v1.0.001.dmg](https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/download/v1.0.001/Banglish-v1.0.001.dmg) |
+| **macOS** | **v1.0.0** *(Classic)* | 100% Native Pure Swift Avro Engine (Direct typing without suggestions popup) | [Banglish-v1.0.0.dmg](https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/download/v1.0.0/Banglish-v1.0.0.dmg) |
 
 ---
 
