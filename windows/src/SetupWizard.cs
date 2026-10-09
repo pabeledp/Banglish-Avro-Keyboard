@@ -63,7 +63,7 @@ namespace Banglish.Setup
             this.Text = "Banglish Setup";
             this.FormBorderStyle = FormBorderStyle.None;
             this.StartPosition = FormStartPosition.CenterScreen;
-            this.Size = new Size(640, 460);
+            this.Size = new Size(680, 480);
             this.BackColor = Color.White;
             this.DoubleBuffered = true;
 
@@ -101,7 +101,6 @@ namespace Banglish.Setup
                 BackColor = Color.FromArgb(240, 253, 244)
             };
             pnlHeader.Paint += PnlHeader_Paint;
-            this.Controls.Add(pnlHeader);
 
             // Close button on header
             Button btnClose = new Button
@@ -119,11 +118,11 @@ namespace Banglish.Setup
             btnClose.Click += (s, e) => this.Close();
             pnlHeader.Controls.Add(btnClose);
 
-            // Bottom Navigation Footer
+            // Bottom Navigation Footer (Height 70)
             Panel pnlFooter = new Panel
             {
                 Dock = DockStyle.Bottom,
-                Height = 65,
+                Height = 70,
                 BackColor = Color.FromArgb(248, 250, 252)
             };
             pnlFooter.Paint += (s, e) =>
@@ -133,26 +132,17 @@ namespace Banglish.Setup
                     e.Graphics.DrawLine(pen, 0, 0, pnlFooter.Width, 0);
                 }
             };
-            this.Controls.Add(pnlFooter);
 
-            btnCancel = CreateNavButton("বাতিল (Cancel)", pnlFooter.Width - 115, 14, 100, (s, e) => this.Close());
-            btnNext = CreateNavButton("পরবর্তী (Next) →", pnlFooter.Width - 250, 14, 125, (s, e) => GoNext());
-            btnNext.BackColor = Color.FromArgb(5, 150, 105);
-            btnNext.ForeColor = Color.White;
-            btnNext.Font = GetBestFont(new[] { "Hind Siliguri", "Segoe UI" }, 10f, FontStyle.Bold);
-
-            btnBack = CreateNavButton("← পেছনে (Back)", pnlFooter.Width - 380, 14, 120, (s, e) => GoBack());
-
-            // Credits: FramEmpire (www.framempire.com) & A M Pabel (www.ampabel.com)
+            // 1. Far Left Credit: FramEmpire (www.framempire.com)
             LinkLabel lnkCompany = new LinkLabel
             {
                 Text = "FramEmpire",
-                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9.5f, FontStyle.Bold),
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 10f, FontStyle.Bold),
                 LinkColor = Color.FromArgb(5, 150, 105),
                 ActiveLinkColor = Color.FromArgb(4, 120, 87),
                 VisitedLinkColor = Color.FromArgb(5, 150, 105),
                 LinkBehavior = LinkBehavior.HoverUnderline,
-                Location = new Point(20, 22),
+                Location = new Point(24, 26),
                 AutoSize = true,
                 Cursor = Cursors.Hand
             };
@@ -160,25 +150,17 @@ namespace Banglish.Setup
             {
                 try { System.Diagnostics.Process.Start("https://www.framempire.com"); } catch {}
             };
+            pnlFooter.Controls.Add(lnkCompany);
 
-            Label lblDot = new Label
-            {
-                Text = "•",
-                Font = new Font("Segoe UI", 9f),
-                ForeColor = Color.FromArgb(203, 213, 225),
-                Location = new Point(lnkCompany.Right + 3, 22),
-                AutoSize = true
-            };
-
+            // 2. Far Right Credit: A M Pabel (www.ampabel.com)
             LinkLabel lnkAuthor = new LinkLabel
             {
                 Text = "A M Pabel",
-                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 9.5f, FontStyle.Bold),
-                LinkColor = Color.FromArgb(30, 41, 59),
+                Font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 10f, FontStyle.Bold),
+                LinkColor = Color.FromArgb(51, 65, 85),
                 ActiveLinkColor = Color.FromArgb(5, 150, 105),
-                VisitedLinkColor = Color.FromArgb(30, 41, 59),
+                VisitedLinkColor = Color.FromArgb(51, 65, 85),
                 LinkBehavior = LinkBehavior.HoverUnderline,
-                Location = new Point(lblDot.Right + 3, 22),
                 AutoSize = true,
                 Cursor = Cursors.Hand
             };
@@ -186,23 +168,36 @@ namespace Banglish.Setup
             {
                 try { System.Diagnostics.Process.Start("https://www.ampabel.com"); } catch {}
             };
-
-            pnlFooter.Controls.Add(lnkCompany);
-            pnlFooter.Controls.Add(lblDot);
+            lnkAuthor.Location = new Point(this.Width - 110, 26);
             pnlFooter.Controls.Add(lnkAuthor);
 
-            pnlFooter.Controls.Add(btnCancel);
-            pnlFooter.Controls.Add(btnNext);
-            pnlFooter.Controls.Add(btnBack);
+            // 3. Centered Action Buttons (Back, Next, Cancel)
+            // Total width = 110 + 10 + 130 + 10 + 95 = 355
+            int startBtnsX = (this.Width - 355) / 2;
+            btnBack = CreateNavButton("← পেছনে", startBtnsX, 17, 110, (s, e) => GoBack());
+            btnNext = CreateNavButton("পরবর্তী →", startBtnsX + 120, 17, 130, (s, e) => GoNext());
+            btnNext.BackColor = Color.FromArgb(5, 150, 105);
+            btnNext.ForeColor = Color.White;
+            btnNext.Font = GetBestFont(new[] { "Hind Siliguri", "Segoe UI" }, 10.5f, FontStyle.Bold);
 
-            // Content Area
+            btnCancel = CreateNavButton("বাতিল", startBtnsX + 260, 17, 95, (s, e) => this.Close());
+
+            pnlFooter.Controls.Add(btnBack);
+            pnlFooter.Controls.Add(btnNext);
+            pnlFooter.Controls.Add(btnCancel);
+
+            // Main Content Area
             pnlContent = new Panel
             {
                 Dock = DockStyle.Fill,
                 BackColor = Color.White,
-                Padding = new Padding(35, 20, 35, 20)
+                Padding = new Padding(30, 15, 30, 15)
             };
+
+            // Add controls in correct docking order so Fill is never hidden
             this.Controls.Add(pnlContent);
+            this.Controls.Add(pnlHeader);
+            this.Controls.Add(pnlFooter);
 
             this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width, this.Height, 18, 18));
             ShowStep(0);
@@ -265,11 +260,17 @@ namespace Banglish.Setup
             {
                 case 0:
                     RenderWelcomeStep();
-                    btnNext.Text = "পরবর্তী (Next) →";
+                    btnBack.Visible = true;
+                    btnNext.Visible = true;
+                    btnCancel.Visible = true;
+                    btnNext.Text = "পরবর্তী →";
                     break;
                 case 1:
                     RenderLocationStep();
-                    btnNext.Text = "ইনস্টল করুন (Install)";
+                    btnBack.Visible = true;
+                    btnNext.Visible = true;
+                    btnCancel.Visible = true;
+                    btnNext.Text = "ইনস্টল করুন";
                     break;
                 case 2:
                     RenderInstallingStep();
@@ -283,9 +284,10 @@ namespace Banglish.Setup
                     btnBack.Visible = false;
                     btnCancel.Visible = false;
                     btnNext.Enabled = true;
+                    btnNext.Visible = true;
                     btnNext.Text = "সমাপ্ত (Finish)";
-                    btnNext.Location = new Point(this.Width - 145, 14);
-                    btnNext.Size = new Size(125, 36);
+                    btnNext.Location = new Point((this.Width - 140) / 2, 17);
+                    btnNext.Size = new Size(140, 36);
                     break;
             }
         }
@@ -294,8 +296,8 @@ namespace Banglish.Setup
         {
             Label lblTitle = new Label
             {
-                Text = "Banglish সেটআপ উইজার্ডে স্বাগতম",
-                Font = new Font("Hind Siliguri", 16f, FontStyle.Bold),
+                Text = "Banglish কীবোর্ড ইনস্টলেশনে স্বাগতম",
+                Font = GetBestFont(new[] { "Hind Siliguri", "Segoe UI" }, 15f, FontStyle.Bold),
                 ForeColor = Color.FromArgb(15, 23, 42),
                 Location = new Point(30, 20),
                 AutoSize = true
@@ -303,15 +305,15 @@ namespace Banglish.Setup
 
             Label lblDesc = new Label
             {
-                Text = "এই উইজার্ডটি আপনার কম্পিউটারে Banglish (ফোনেটিক বাংলা কীবোর্ড) ইনস্টল করবে।\n\n" +
-                       "• ১০০% অফলাইন ও নিরাপদ (No Telemetry)\n" +
-                       "• উইন্ডোজের যেকোনো সফটওয়্যারে কাজ করে (Notepad, Word, Chrome, ইত্যাদি)\n" +
-                       "• F12 চেপে যেকোনো সময় বাংলা ও ইংরেজির মধ্যে সুইচ করুন\n\n" +
-                       "ইনস্টলেশন শুরু করতে 'পরবর্তী' বাটনে ক্লিক করুন।",
-                Font = new Font("Hind Siliguri", 11f, FontStyle.Regular),
+                Text = "উইন্ডোজের যেকোনো সফটওয়্যারে দ্রুত ও নিখুঁতভাবে বাংলা টাইপ করুন।\n\n" +
+                       "• ১০০% অফলাইন ও নিরাপদ (প্রাইভেসি সুরক্ষিত)\n" +
+                       "• F12 বাটন চেপে যেকোনো মুহূর্তে বাংলা ও ইংরেজির মধ্যে সুইচ করুন\n" +
+                       "• রিয়েল-টাইম ফোনেটিক সাজেশন এবং আধুনিক অ্যাপল-স্টাইল গ্লাস ইন্টারফেস\n\n" +
+                       "ইনস্টলেশন শুরু করতে নিচের 'পরবর্তী' বাটনে ক্লিক করুন।",
+                Font = GetBestFont(new[] { "Hind Siliguri", "Segoe UI" }, 11f, FontStyle.Regular),
                 ForeColor = Color.FromArgb(51, 65, 85),
                 Location = new Point(30, 65),
-                Size = new Size(570, 180)
+                Size = new Size(590, 190)
             };
 
             pnlContent.Controls.Add(lblTitle);
