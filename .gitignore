@@ -6,3 +6,5 @@ test_bundle/
 *.log
 Banglish-v*.dmg
 Banglish-v*.pkg
+Banglish.dmg
+Banglish.pkg

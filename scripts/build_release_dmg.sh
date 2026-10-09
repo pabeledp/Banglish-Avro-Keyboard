@@ -215,8 +215,11 @@ hdiutil create \
     -format UDZO \
     "${DMG_OUTPUT}"
 
+cp "${DMG_OUTPUT}" "${PROJECT_DIR}/${APP_NAME}.dmg"
+cp "${PKG_OUTPUT}" "${PROJECT_DIR}/${APP_NAME}.pkg"
 cp "${DMG_OUTPUT}" "${PROJECT_DIR}/${APP_NAME}_Installer.dmg"
 cp "${PKG_OUTPUT}" "${PROJECT_DIR}/${APP_NAME}_Installer.pkg"
+
 
 echo "=========================================="
 echo " BUILD SUCCESS!"

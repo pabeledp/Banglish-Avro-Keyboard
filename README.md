@@ -6,8 +6,8 @@
   <p><strong>100% Native Bangla Phonetic Input Method Editor for macOS</strong><br>Built natively for Apple Silicon (M1/M2/M3/M4/M5) and Intel Macs</p>
   
   <p>
-    <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/download/v1.0.001/Banglish-v1.0.001.dmg">
-      <img src="https://img.shields.io/badge/Download%20for%20macOS-Banglish%20v1.0.001%20(Latest)-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish v1.0.001 for macOS">
+    <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg">
+      <img src="https://img.shields.io/badge/Download%20for%20macOS-Always%20Latest%20Version-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish for macOS (Always Latest Version)">
     </a>
   </p>
 
