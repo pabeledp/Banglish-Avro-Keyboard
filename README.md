@@ -9,13 +9,16 @@
     <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg">
       <img src="https://img.shields.io/badge/Download%20Banglish-macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish for macOS">
     </a>
+    <a href="windows/README.md">
+      <img src="https://img.shields.io/badge/Download%20Banglish-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Banglish for Windows">
+    </a>
   </p>
 
   <p>
     <img src="https://img.shields.io/badge/macOS-12.0%2B-000000?style=flat-square&logo=apple&logoColor=white" alt="macOS 12+">
+    <img src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?style=flat-square&logo=windows&logoColor=white" alt="Windows 10/11">
     <img src="https://img.shields.io/badge/Apple%20Silicon-Native-000000?style=flat-square" alt="Apple Silicon">
-    <img src="https://img.shields.io/badge/Swift-100%25-000000?style=flat-square&logo=swift&logoColor=white" alt="Pure Swift">
-    <img src="https://img.shields.io/badge/Rosetta-Not%20Required-000000?style=flat-square" alt="No Rosetta">
+    <img src="https://img.shields.io/badge/Swift%20%26%20C%23-100%25-000000?style=flat-square" alt="Swift & C#">
     <img src="https://img.shields.io/badge/Privacy-100%25%20Offline-000000?style=flat-square" alt="100% Offline">
   </p>
 </div>
@@ -60,6 +63,17 @@ Log out of your macOS account and log back in (or restart your Mac).
 2. Click the **(+)** button at the bottom left.
 3. Select **Bangla** from the language list, select **Banglish**, and click **Add**.
 4. Select **Banglish** from your macOS menu bar keyboard menu (or press `Ctrl + Space` / Globe key) and begin typing.
+
+---
+
+## 🪟 Banglish for Windows (Windows 10 & 11)
+
+Banglish now includes a **100% native Windows implementation** in [`windows/`](windows/README.md).
+
+### Quick Run:
+1. Navigate to the `windows/` directory.
+2. Build `Banglish.exe` using `powershell -ExecutionPolicy Bypass -File .\build.ps1` or run the pre-built `Banglish.exe`.
+3. Press **`F12`** anytime to toggle Banglish (বাংলা) mode ON/OFF system-wide across Notepad, Word, Chrome, Discord, VS Code, and all Windows applications!
 
 ---
 
