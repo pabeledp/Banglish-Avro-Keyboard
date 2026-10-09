@@ -68,6 +68,17 @@ public final class BanglishDictionary {
         return words.contains(word)
     }
 
+    @inline(__always)
+    private static func hasScalar(_ word: String, _ val: UInt32) -> Bool {
+        return word.unicodeScalars.contains { $0.value == val }
+    }
+
+    @inline(__always)
+    private static func replaceScalar(_ word: String, from: UInt32, to: UInt32) -> String {
+        let newScalars = word.unicodeScalars.map { $0.value == from ? UnicodeScalar(to)! : $0 }
+        return String(String.UnicodeScalarView(newScalars))
+    }
+
     /// Generate ranked candidates for raw typed phonetic input
     public func candidates(for rawInput: String) -> [String] {
         guard !rawInput.isEmpty else { return [] }
@@ -104,76 +115,117 @@ public final class BanglishDictionary {
         // Rule B: ি <-> ী (Hroshwo-I vs Deergho-I)
         let curWithI = Array(variants) + [primary]
         for w in curWithI {
-            if w.contains("ি") {
-                variants.insert(w.replacingOccurrences(of: "ি", with: "ী"))
+            let hasHroshwoI = w.unicodeScalars.contains { $0.value == 0x09BF }
+            let hasDeerghoI = w.unicodeScalars.contains { $0.value == 0x09C0 }
+            if hasHroshwoI {
+                let rep = w.unicodeScalars.map { $0.value == 0x09BF ? UnicodeScalar(0x09C0)! : $0 }
+                variants.insert(String(String.UnicodeScalarView(rep)))
             }
-            if w.contains("ী") {
-                variants.insert(w.replacingOccurrences(of: "ী", with: "ি"))
+            if hasDeerghoI {
+                let rep = w.unicodeScalars.map { $0.value == 0x09C0 ? UnicodeScalar(0x09BF)! : $0 }
+                variants.insert(String(String.UnicodeScalarView(rep)))
             }
         }
 
         // Rule C: ু <-> ূ (Hroshwo-U vs Deergho-U)
         let curWithU = Array(variants) + [primary]
         for w in curWithU {
-            if w.contains("ু") {
-                variants.insert(w.replacingOccurrences(of: "ু", with: "ূ"))
+            let hasHroshwoU = w.unicodeScalars.contains { $0.value == 0x09C1 }
+            let hasDeerghoU = w.unicodeScalars.contains { $0.value == 0x09C2 }
+            if hasHroshwoU {
+                let rep = w.unicodeScalars.map { $0.value == 0x09C1 ? UnicodeScalar(0x09C2)! : $0 }
+                variants.insert(String(String.UnicodeScalarView(rep)))
             }
-            if w.contains("ূ") {
-                variants.insert(w.replacingOccurrences(of: "ূ", with: "ু"))
+            if hasDeerghoU {
+                let rep = w.unicodeScalars.map { $0.value == 0x09C2 ? UnicodeScalar(0x09C1)! : $0 }
+                variants.insert(String(String.UnicodeScalarView(rep)))
             }
         }
 
-        // Rule D: স <-> শ <-> ষ (S / Sh / Shh)
+        // Rule D: স (0x09B8) <-> শ (0x09B6) <-> ষ (0x09B7)
         let curWithS = Array(variants) + [primary]
         for w in curWithS {
-            if w.contains("স") {
-                variants.insert(w.replacingOccurrences(of: "স", with: "শ"))
-                variants.insert(w.replacingOccurrences(of: "স", with: "ষ"))
+            if Self.hasScalar(w, 0x09B8) {
+                variants.insert(Self.replaceScalar(w, from: 0x09B8, to: 0x09B6))
+                variants.insert(Self.replaceScalar(w, from: 0x09B8, to: 0x09B7))
             }
-            if w.contains("শ") {
-                variants.insert(w.replacingOccurrences(of: "শ", with: "স"))
-                variants.insert(w.replacingOccurrences(of: "শ", with: "ষ"))
+            if Self.hasScalar(w, 0x09B6) {
+                variants.insert(Self.replaceScalar(w, from: 0x09B6, to: 0x09B8))
+                variants.insert(Self.replaceScalar(w, from: 0x09B6, to: 0x09B7))
             }
-            if w.contains("ষ") {
-                variants.insert(w.replacingOccurrences(of: "ষ", with: "শ"))
-                variants.insert(w.replacingOccurrences(of: "ষ", with: "স"))
+            if Self.hasScalar(w, 0x09B7) {
+                variants.insert(Self.replaceScalar(w, from: 0x09B7, to: 0x09B6))
+                variants.insert(Self.replaceScalar(w, from: 0x09B7, to: 0x09B8))
             }
         }
 
-        // Rule E: ন <-> ণ (Donto-Na vs Murdhonyo-Na)
+        // Rule E: ন (0x09A8) <-> ণ (0x09A3)
         let curWithN = Array(variants) + [primary]
         for w in curWithN {
-            if w.contains("ন") {
-                variants.insert(w.replacingOccurrences(of: "ন", with: "ণ"))
+            if Self.hasScalar(w, 0x09A8) {
+                variants.insert(Self.replaceScalar(w, from: 0x09A8, to: 0x09A3))
             }
-            if w.contains("ণ") {
-                variants.insert(w.replacingOccurrences(of: "ণ", with: "ন"))
+            if Self.hasScalar(w, 0x09A3) {
+                variants.insert(Self.replaceScalar(w, from: 0x09A3, to: 0x09A8))
             }
         }
 
-        // Rule F: র <-> ড় <-> ঢ়
+        // Rule F: র (0x09B0) <-> ড় (0x09DC) <-> ঢ় (0x09DD)
         let curWithR = Array(variants) + [primary]
         for w in curWithR {
-            if w.contains("র") {
-                variants.insert(w.replacingOccurrences(of: "র", with: "ড়"))
+            if Self.hasScalar(w, 0x09B0) {
+                variants.insert(Self.replaceScalar(w, from: 0x09B0, to: 0x09DC))
             }
-            if w.contains("ড়") {
-                variants.insert(w.replacingOccurrences(of: "ড়", with: "র"))
-                variants.insert(w.replacingOccurrences(of: "ড়", with: "ঢ়"))
+            if Self.hasScalar(w, 0x09DC) {
+                variants.insert(Self.replaceScalar(w, from: 0x09DC, to: 0x09B0))
+                variants.insert(Self.replaceScalar(w, from: 0x09DC, to: 0x09DD))
             }
-            if w.contains("ঢ়") {
-                variants.insert(w.replacingOccurrences(of: "ঢ়", with: "ড়"))
+            if Self.hasScalar(w, 0x09DD) {
+                variants.insert(Self.replaceScalar(w, from: 0x09DD, to: 0x09DC))
             }
         }
 
-        // Rule G: জ <-> য (Ja vs Ya)
+        // Rule G: জ (0x099C) <-> য (0x09AF)
         let curWithJ = Array(variants) + [primary]
         for w in curWithJ {
-            if w.contains("জ") {
-                variants.insert(w.replacingOccurrences(of: "জ", with: "য"))
+            if Self.hasScalar(w, 0x099C) {
+                variants.insert(Self.replaceScalar(w, from: 0x099C, to: 0x09AF))
             }
-            if w.contains("য") {
-                variants.insert(w.replacingOccurrences(of: "য", with: "জ"))
+            if Self.hasScalar(w, 0x09AF) {
+                variants.insert(Self.replaceScalar(w, from: 0x09AF, to: 0x099C))
+            }
+        }
+
+        // Rule M: ছ (0x099B) <-> চ (0x099A) (Ch vs C ambiguity)
+        let curWithCh = Array(variants) + [primary]
+        for w in curWithCh {
+            if Self.hasScalar(w, 0x099B) {
+                variants.insert(Self.replaceScalar(w, from: 0x099B, to: 0x099A))
+            }
+            if Self.hasScalar(w, 0x099A) {
+                variants.insert(Self.replaceScalar(w, from: 0x099A, to: 0x099B))
+            }
+        }
+
+        // Rule N: Dental vs Retroflex (ত 0x09A4 <-> ট 0x099F)
+        let curWithRetro = Array(variants) + [primary]
+        for w in curWithRetro {
+            if Self.hasScalar(w, 0x09A4) {
+                variants.insert(Self.replaceScalar(w, from: 0x09A4, to: 0x099F))
+            }
+            if Self.hasScalar(w, 0x099F) {
+                variants.insert(Self.replaceScalar(w, from: 0x099F, to: 0x09A4))
+            }
+        }
+
+        // Rule O: Inherent vowel vs o-kar ambiguity (e.g. khoj -> খোজ, chok -> চোখ)
+        if rawInput.contains("o") && !primary.contains("ো") {
+            let withO = rawInput.replacingOccurrences(of: "o", with: "O")
+            let transO = BanglishEngine.shared.transliterate(withO)
+            if !transO.isEmpty {
+                variants.insert(transO)
+                if Self.hasScalar(transO, 0x099B) { variants.insert(Self.replaceScalar(transO, from: 0x099B, to: 0x099A)) }
+                if Self.hasScalar(transO, 0x099A) { variants.insert(Self.replaceScalar(transO, from: 0x099A, to: 0x099B)) }
             }
         }
 
@@ -236,27 +288,111 @@ public final class BanglishDictionary {
             }
         }
 
-        // Prioritize dictionary confirmed variants
-        var dictConfirmed: [String] = []
+        // Rule L: Comprehensive Chandrabindu (চন্দ্রবিন্দু ঁ) Suggestions
+        let vowelSigns: Set<UInt32> = [
+            0x09BE, // া
+            0x09BF, // ি
+            0x09C0, // ী
+            0x09C1, // ু
+            0x09C2, // ূ
+            0x09C3, // ৃ
+            0x09C7, // ে
+            0x09C8, // ৈ
+            0x09CB, // ো
+            0x09CC  // ৌ
+        ]
+        let independentVowels: Set<UInt32> = [
+            0x0985, 0x0986, 0x0987, 0x0988, 0x0989, 0x098A, 0x098B, 0x098F, 0x0990, 0x0993, 0x0994
+        ]
+        let nasalReplacements = [
+            "ন্দ": "ঁদ",
+            "ন্ত": "ঁত",
+            "ঞ্চ": "ঁচ",
+            "ম্প": "ঁপ",
+            "ঙ্ক": "ঁক",
+            "ন্স": "ঁস",
+            "ঞ্জ": "ঁজ",
+            "ন্ঠ": "ঁঠ",
+            "ন্ড": "ঁড"
+        ]
+
+        var cbBaseWords = Array(variants) + [primary]
+
+        for w in cbBaseWords {
+            // 1. Insert ঁ after vowel signs or independent vowels (single-site substitution)
+            let scalars = Array(w.unicodeScalars)
+            for (i, sc) in scalars.enumerated() {
+                if vowelSigns.contains(sc.value) || independentVowels.contains(sc.value) {
+                    if i + 1 < scalars.count && scalars[i + 1].value == 0x0981 { continue }
+                    var newScalars = scalars
+                    newScalars.insert(UnicodeScalar(0x0981)!, at: i + 1)
+                    let candidate = String(String.UnicodeScalarView(newScalars))
+                    variants.insert(candidate)
+                }
+            }
+
+            // 2. Nasal conjuncts to Chandrabindu
+            for (from, to) in nasalReplacements {
+                if w.contains(from) {
+                    variants.insert(w.replacingOccurrences(of: from, with: to))
+                }
+            }
+        }
+
+        // 3. Raw phonetic input variations for Chandrabindu
+        if !rawInput.contains("^") {
+            let rawChars = Array(rawInput)
+            for (i, ch) in rawChars.enumerated() {
+                if "aeiouAEIOU".contains(ch) {
+                    var newChars = rawChars
+                    newChars.insert("^", at: i + 1)
+                    let transliteratedCB = BanglishEngine.shared.transliterate(String(newChars))
+                    if !transliteratedCB.isEmpty {
+                        variants.insert(transliteratedCB)
+                        if Self.hasScalar(transliteratedCB, 0x099B) {
+                            variants.insert(Self.replaceScalar(transliteratedCB, from: 0x099B, to: 0x099A))
+                        }
+                        if Self.hasScalar(transliteratedCB, 0x099A) {
+                            variants.insert(Self.replaceScalar(transliteratedCB, from: 0x099A, to: 0x099B))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Prioritize dictionary confirmed variants:
+        // Confirmed Chandrabindu words first, then other confirmed words
+        var cbConfirmed: [String] = []
+        var otherConfirmed: [String] = []
         var others: [String] = []
 
         for v in variants {
             if words.contains(v) {
-                dictConfirmed.append(v)
+                if v.unicodeScalars.contains(where: { $0.value == 0x0981 }) {
+                    cbConfirmed.append(v)
+                } else {
+                    otherConfirmed.append(v)
+                }
             } else {
                 others.append(v)
             }
         }
 
-        // Add dictionary confirmed variants first
-        for v in dictConfirmed {
-            if result.count >= 6 { break }
+        // Add confirmed Chandrabindu words first (after primary)
+        for v in cbConfirmed {
+            if result.count >= 8 { break }
             addCandidate(v)
         }
 
-        // If list still has room, add other phonetic variants
+        // Add other confirmed dictionary words
+        for v in otherConfirmed {
+            if result.count >= 8 { break }
+            addCandidate(v)
+        }
+
+        // If list still has room, add remaining phonetic variants
         for v in others {
-            if result.count >= 5 { break }
+            if result.count >= 7 { break }
             addCandidate(v)
         }
 

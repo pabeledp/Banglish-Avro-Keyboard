@@ -96,7 +96,7 @@ class BanglishInputController: IMKInputController {
             25: 8  // 9
         ]
         if CandidateWindow.shared.isCandidateWindowVisible,
-           !modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option),
+           !modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option), !modifiers.contains(.shift),
            let idx = numberKeyCodes[keyCode] {
             CandidateWindow.shared.selectIndex(idx)
             return true
