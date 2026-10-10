@@ -70,6 +70,16 @@ Log out of your macOS account and log back in (or restart your Mac).
 
 ---
 
+### 🛡️ ম্যাকের সিকিউরিটির (Gatekeeper) কারণে অ্যাপ ওপেন না হলে করণীয় (Security Guide)
+
+ম্যাকের ডিফল্ট সিকিউরিটির (Gatekeeper) কারণে যদি অ্যাপ সরাসরি ওপেন হতে বাধা দেয়, তাহলে খুব সহজেই সিস্টেম সেটিংস থেকে অনুমোদন দিতে পারেন:
+
+> **System Settings** ➔ **Privacy & Security** ➔ **Allow applications downloaded from** ➔ **Open Anyway**
+
+**Privacy & Security** ট্যাবে গিয়ে *"Allow applications downloaded from"* সেকশনের পাশে থাকা **"Open Anyway"** বাটনে ক্লিক করলেই অ্যাপটি সফলভাবে চালু হয়ে যাবে।
+
+---
+
 ## 🪟 Banglish for Windows (Windows 10 & 11)
 
 Banglish now includes a **100% native Windows implementation** in [`windows/`](windows/README.md).
@@ -230,6 +240,6 @@ The primary download buttons at the top of this repository provide the latest re
 
 ---
 
-## License
+## License & Credits
 
-Released under the **MIT License**. Created by [A M Pabel](https://github.com/pabeledp).
+Released under the **MIT License**. Created by [A M Pabel](https://github.com/pabeledp) & [FramEmpire](https://www.framempire.com).

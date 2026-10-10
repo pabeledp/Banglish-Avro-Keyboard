@@ -204,6 +204,19 @@ cat << 'EOF' > "${DMG_STAGING}/ইনস্টল করার নিয়ম (
 ৩. (+) বাটনে ক্লিক করে "Bangla" সিলেক্ট করে "Banglish" অ্যাড করুন।
 ৪. কীবোর্ড শর্টকাট (Ctrl + Space বা Globe কী) দিয়ে Banglish সিলেক্ট করে টাইপ শুরু করুন!
 
+------------------------------------------------------------
+SECURITY GUIDE (গেটকিপার সিকিউরিটি অনুমোদন):
+ম্যাকের ডিফল্ট সিকিউরিটির (Gatekeeper) কারণে যদি অ্যাপ সরাসরি ওপেন হতে বাধা দেয়,
+তাহলে খুব সহজেই সিস্টেম সেটিংস থেকে অনুমোদন দিতে পারেন:
+
+System Settings ➔ Privacy & Security ➔ Allow applications downloaded from ➔ Open Anyway
+
+Privacy & Security ট্যাবে গিয়ে "Allow applications downloaded from" সেকশনের
+পাশে থাকা "Open Anyway" বাটনে ক্লিক করলেই অ্যাপটি সফলভাবে চালু হয়ে যাবে।
+------------------------------------------------------------
+
+Developer Credits:
+FramEmpire (www.framempire.com) & A M Pabel
 ============================================================
 EOF
 
