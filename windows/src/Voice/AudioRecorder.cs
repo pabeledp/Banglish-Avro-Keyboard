@@ -77,6 +77,7 @@ namespace Banglish.Voice
 
         public bool IsRecording { get; private set; }
         public event Action<float> AudioLevelChanged;
+        public event Action<byte[], float> AudioChunkReceived;
 
         public AudioRecorder()
         {
@@ -207,6 +208,13 @@ namespace Banglish.Voice
                     if (AudioLevelChanged != null)
                     {
                         AudioLevelChanged(peak);
+                    }
+
+                    if (AudioChunkReceived != null)
+                    {
+                        byte[] chunk = new byte[bytesRead];
+                        Buffer.BlockCopy(data, 0, chunk, 0, bytesRead);
+                        AudioChunkReceived(chunk, peak);
                     }
 
                     // Re-add buffer for continuous streaming

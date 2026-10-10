@@ -126,6 +126,10 @@ namespace Banglish
             {
                 VoiceTypingManager.Shared.ToggleVoiceTyping();
             };
+            hook.VoiceHotkeyPressed += () =>
+            {
+                VoiceTypingManager.Shared.ToggleVoiceTyping();
+            };
 #endif
 
             candidateWindow.OnSelectCandidate = (chosen) =>
@@ -175,9 +179,12 @@ namespace Banglish
             };
 
             ContextMenuStrip contextMenu = new ContextMenuStrip();
-            contextMenu.RenderMode = ToolStripRenderMode.System;
+            contextMenu.Renderer = new DarkMenuRenderer();
+            contextMenu.ShowImageMargin = false;
+            contextMenu.AutoClose = true;
+            contextMenu.Font = ToggleBarForm.GetBestFont(new[] { "Hind Siliguri", "Nirmala UI", "Segoe UI" }, 9.5f, FontStyle.Regular);
 
-            ToolStripMenuItem toggleItem = new ToolStripMenuItem("ভাষা পরিবর্তন (F12)", null, (s, e) =>
+            ToolStripMenuItem toggleItem = new ToolStripMenuItem("🔄  ভাষা পরিবর্তন (F12)", null, (s, e) =>
             {
                 hook.ToggleMode();
             });
@@ -186,14 +193,14 @@ namespace Banglish
             contextMenu.Items.Add(toggleItem);
 
 #if VOICE_BETA
-            ToolStripMenuItem voiceItem = new ToolStripMenuItem("ভয়েস টাইপিং (Ctrl+F12)", null, (s, e) =>
+            ToolStripMenuItem voiceItem = new ToolStripMenuItem("🎙️  ভয়েস টাইপিং (Ctrl+F12)", null, (s, e) =>
             {
                 VoiceTypingManager.Shared.ToggleVoiceTyping();
             });
             contextMenu.Items.Add(voiceItem);
 #endif
 
-            ToolStripMenuItem toggleBarItem = new ToolStripMenuItem("টগল বার দেখান / লুকান", null, (s, e) =>
+            ToolStripMenuItem toggleBarItem = new ToolStripMenuItem("👁️  টগল বার দেখান / লুকান", null, (s, e) =>
             {
                 if (toggleWidget.Visible) toggleWidget.Hide();
                 else toggleWidget.Show();
@@ -202,14 +209,15 @@ namespace Banglish
             contextMenu.Items.Add(new ToolStripSeparator());
 
 #if VOICE_BETA
-            ToolStripMenuItem voiceSettingsItem = new ToolStripMenuItem("ভয়েস সেটিংস (Google API Key)", null, (s, e) => ShowVoiceSettings());
+            ToolStripMenuItem voiceSettingsItem = new ToolStripMenuItem("⚙️  ভয়েস সেটিংস (Google API Key)", null, (s, e) => ShowVoiceSettings());
             contextMenu.Items.Add(voiceSettingsItem);
 #endif
 
-            ToolStripMenuItem welcomeItem = new ToolStripMenuItem("Welcome & Quick Guide", null, (s, e) => new WelcomeForm().Show());
-            ToolStripMenuItem testItem = new ToolStripMenuItem("Open Transliteration Tester", null, (s, e) => OpenTestWindow());
-            ToolStripMenuItem aboutItem = new ToolStripMenuItem("About Banglish Windows", null, (s, e) => ShowAbout());
-            ToolStripMenuItem exitItem = new ToolStripMenuItem("Exit Banglish", null, (s, e) => ExitApp());
+            ToolStripMenuItem welcomeItem = new ToolStripMenuItem("📖  Welcome & Quick Guide", null, (s, e) => new WelcomeForm().Show());
+            ToolStripMenuItem testItem = new ToolStripMenuItem("🧪  Open Transliteration Tester", null, (s, e) => OpenTestWindow());
+            ToolStripMenuItem aboutItem = new ToolStripMenuItem("ℹ️  About Banglish Windows", null, (s, e) => ShowAbout());
+            ToolStripMenuItem exitItem = new ToolStripMenuItem("❌  Exit Banglish", null, (s, e) => ExitApp());
+            exitItem.ForeColor = Color.FromArgb(248, 113, 113);
 
             contextMenu.Items.Add(welcomeItem);
             contextMenu.Items.Add(testItem);

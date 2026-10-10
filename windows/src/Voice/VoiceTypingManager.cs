@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Media;
 using System.Threading;
 using System.Windows.Forms;
@@ -23,6 +24,13 @@ namespace Banglish.Voice
 
         private readonly AudioRecorder _recorder;
         private readonly VoiceIndicatorForm _indicatorForm;
+
+        private MemoryStream _currentPhraseStream;
+        private bool _isSpeaking = false;
+        private int _silenceDurationMs = 0;
+        private int _totalSilenceDurationMs = 0;
+        private const float SILENCE_THRESHOLD = 0.040f;
+
         private System.Windows.Forms.Timer _dismissTimer;
 
         public bool IsRecording
@@ -34,17 +42,15 @@ namespace Banglish.Voice
         {
             _recorder = new AudioRecorder();
             _indicatorForm = new VoiceIndicatorForm();
+            _currentPhraseStream = new MemoryStream();
 
-            _recorder.AudioLevelChanged += (level) =>
-            {
-                _indicatorForm.UpdateAudioLevel(level);
-            };
+            _recorder.AudioChunkReceived += OnAudioChunk;
 
             _indicatorForm.OnClickStop += () =>
             {
                 if (IsRecording)
                 {
-                    StopAndTranscribe();
+                    StopSession();
                 }
             };
         }
@@ -53,15 +59,15 @@ namespace Banglish.Voice
         {
             if (IsRecording)
             {
-                StopAndTranscribe();
+                StopSession();
             }
             else
             {
-                StartRecording();
+                StartSession();
             }
         }
 
-        public void StartRecording()
+        public void StartSession()
         {
             if (IsRecording) return;
 
@@ -72,11 +78,19 @@ namespace Banglish.Voice
                 _dismissTimer = null;
             }
 
+            lock (_currentPhraseStream)
+            {
+                _currentPhraseStream = new MemoryStream();
+            }
+            _isSpeaking = false;
+            _silenceDurationMs = 0;
+            _totalSilenceDurationMs = 0;
+
             bool ok = _recorder.StartRecording();
             if (ok)
             {
                 try { SystemSounds.Asterisk.Play(); } catch {}
-                _indicatorForm.SetState(VoiceState.Listening, "কথা বলুন... (Ctrl+F12)");
+                _indicatorForm.SetState(VoiceState.Listening, "কথা বলুন... (লাইভ টাইপিং)");
             }
             else
             {
@@ -85,38 +99,118 @@ namespace Banglish.Voice
             }
         }
 
-        public void StopAndTranscribe()
+        public void StopSession()
         {
             if (!IsRecording) return;
 
-            byte[] pcmData = _recorder.StopRecording();
+            _recorder.StopRecording();
 
-            if (pcmData == null || pcmData.Length < 3200)
+            // Dispatch any final remaining speech chunk
+            byte[] finalChunk = null;
+            lock (_currentPhraseStream)
             {
-                _indicatorForm.SetState(VoiceState.Error, "কোনো কথা রেকর্ড হয়নি");
-                ScheduleDismiss(1500);
-                return;
+                if (_currentPhraseStream.Length >= 4800) // At least 150ms of audio
+                {
+                    finalChunk = _currentPhraseStream.ToArray();
+                }
+                _currentPhraseStream = new MemoryStream();
             }
 
-            _indicatorForm.SetState(VoiceState.Processing, "প্রসেসিং হচ্ছে...");
+            if (finalChunk != null)
+            {
+                _indicatorForm.SetState(VoiceState.Processing, "শেষ অংশ প্রসেসিং হচ্ছে...");
+                DispatchPhrase(finalChunk, true);
+            }
+            else
+            {
+                _indicatorForm.SetState(VoiceState.Success, "ভয়েস টাইপিং সমাপ্ত");
+                ScheduleDismiss(1000);
+            }
+        }
 
+        private void OnAudioChunk(byte[] chunk, float peak)
+        {
+            if (!IsRecording) return;
+
+            _indicatorForm.UpdateAudioLevel(peak);
+
+            byte[] chunkToDispatch = null;
+
+            lock (_currentPhraseStream)
+            {
+                if (peak >= SILENCE_THRESHOLD)
+                {
+                    _isSpeaking = true;
+                    _silenceDurationMs = 0;
+                    _totalSilenceDurationMs = 0;
+                    _currentPhraseStream.Write(chunk, 0, chunk.Length);
+                }
+                else
+                {
+                    _silenceDurationMs += 100;
+                    _totalSilenceDurationMs += 100;
+
+                    // Preserve natural speech tail (up to 200ms)
+                    if (_isSpeaking || _silenceDurationMs <= 200)
+                    {
+                        _currentPhraseStream.Write(chunk, 0, chunk.Length);
+                    }
+                }
+
+                // Condition 1: Natural pause after speaking (at least 400ms speech + 450ms pause)
+                bool pauseDetected = _isSpeaking && _silenceDurationMs >= 450 && _currentPhraseStream.Length >= 12800;
+
+                // Condition 2: Continuous long speech chunk without pause (> 2.8 seconds)
+                bool maxChunkReached = _currentPhraseStream.Length >= 89600;
+
+                if (pauseDetected || maxChunkReached)
+                {
+                    chunkToDispatch = _currentPhraseStream.ToArray();
+                    _currentPhraseStream = new MemoryStream();
+                    _isSpeaking = false;
+                    _silenceDurationMs = 0;
+                }
+            }
+
+            if (chunkToDispatch != null)
+            {
+                DispatchPhrase(chunkToDispatch, false);
+            }
+
+            // Auto-stop if silent for more than 10 seconds
+            if (_totalSilenceDurationMs >= 10000)
+            {
+                StopSession();
+            }
+        }
+
+        private void DispatchPhrase(byte[] pcmData, bool isFinal)
+        {
             GoogleSpeechClient.RecognizeAsync(pcmData, (transcript, error) =>
             {
                 if (!string.IsNullOrEmpty(transcript))
                 {
-                    _indicatorForm.SetState(VoiceState.Success, transcript);
-
-                    // Insert text directly into the active typing cursor
+                    // Live Real-Time Injection into active document!
                     string textToInsert = transcript + " ";
                     KeyboardHook.ReplaceComposedText(0, textToInsert);
 
-                    ScheduleDismiss(1200);
+                    if (IsRecording)
+                    {
+                        _indicatorForm.SetState(VoiceState.Listening, "টাইপ করা হয়েছে: " + transcript);
+                    }
+                    else if (isFinal)
+                    {
+                        _indicatorForm.SetState(VoiceState.Success, transcript);
+                        ScheduleDismiss(1000);
+                    }
                 }
                 else
                 {
-                    string msg = !string.IsNullOrEmpty(error) ? error : "কোনো কথা শনাক্ত হয়নি";
-                    _indicatorForm.SetState(VoiceState.Error, msg);
-                    ScheduleDismiss(2200);
+                    if (isFinal && !IsRecording)
+                    {
+                        _indicatorForm.SetState(VoiceState.Success, "ভয়েস টাইপিং সমাপ্ত");
+                        ScheduleDismiss(1000);
+                    }
                 }
             });
         }

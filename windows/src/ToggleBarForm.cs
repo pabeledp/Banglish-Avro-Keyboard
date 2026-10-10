@@ -11,6 +11,37 @@ using Banglish.Voice;
 
 namespace Banglish.UI
 {
+    public class DarkMenuColorTable : ProfessionalColorTable
+    {
+        public override Color ToolStripDropDownBackground { get { return Color.FromArgb(15, 23, 42); } }
+        public override Color ImageMarginGradientBegin { get { return Color.FromArgb(15, 23, 42); } }
+        public override Color ImageMarginGradientMiddle { get { return Color.FromArgb(15, 23, 42); } }
+        public override Color ImageMarginGradientEnd { get { return Color.FromArgb(15, 23, 42); } }
+        public override Color MenuBorder { get { return Color.FromArgb(16, 185, 129); } }
+        public override Color MenuItemBorder { get { return Color.FromArgb(16, 185, 129); } }
+        public override Color MenuItemSelected { get { return Color.FromArgb(5, 150, 105); } }
+        public override Color MenuItemSelectedGradientBegin { get { return Color.FromArgb(5, 150, 105); } }
+        public override Color MenuItemSelectedGradientEnd { get { return Color.FromArgb(4, 120, 87); } }
+        public override Color MenuItemPressedGradientBegin { get { return Color.FromArgb(4, 120, 87); } }
+        public override Color MenuItemPressedGradientEnd { get { return Color.FromArgb(6, 78, 59); } }
+        public override Color SeparatorDark { get { return Color.FromArgb(51, 65, 85); } }
+        public override Color SeparatorLight { get { return Color.FromArgb(30, 41, 59); } }
+    }
+
+    public class DarkMenuRenderer : ToolStripProfessionalRenderer
+    {
+        public DarkMenuRenderer() : base(new DarkMenuColorTable())
+        {
+            this.RoundedEdges = true;
+        }
+
+        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+        {
+            e.TextColor = Color.White;
+            base.OnRenderItemText(e);
+        }
+    }
+
     public class ToggleBarForm : Form
     {
         [DllImport("Gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
@@ -21,6 +52,14 @@ namespace Banglish.UI
         [DllImport("dwmapi.dll")]
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
+        [DllImport("user32.dll")]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOACTIVATE = 0x0010;
+
         private readonly KeyboardHook _hook;
         private bool _isBangla = true;
         private Image _logoImg;
@@ -30,8 +69,10 @@ namespace Banglish.UI
         private bool _hasDragged = false;
         private bool _isHovered = false;
         private bool _isMicHovered = false;
+        private bool _userClosed = false;
 
         private ContextMenuStrip _contextMenu;
+        private System.Windows.Forms.Timer _keepAliveTimer;
 
         public static Font GetBestFont(string[] fontNames, float size, FontStyle style)
         {
@@ -56,6 +97,19 @@ namespace Banglish.UI
             LoadLogo();
             InitializeComponent();
             SetDefaultPosition();
+
+            // Heartbeat timer to guarantee toggle button never disappears or gets hidden by taskbar
+            _keepAliveTimer = new System.Windows.Forms.Timer();
+            _keepAliveTimer.Interval = 2500;
+            _keepAliveTimer.Tick += (s, e) =>
+            {
+                if (!this.Visible && !_userClosed)
+                {
+                    this.Show();
+                }
+                SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            };
+            _keepAliveTimer.Start();
         }
 
         private void LoadLogo()
@@ -98,11 +152,14 @@ namespace Banglish.UI
             this.Cursor = Cursors.Hand;
             this.BackColor = Color.FromArgb(30, 41, 59);
 
-            // Context Menu on Right Click
+            // Custom Sleek Dark UI Context Menu
             _contextMenu = new ContextMenuStrip();
-            _contextMenu.RenderMode = ToolStripRenderMode.System;
+            _contextMenu.Renderer = new DarkMenuRenderer();
+            _contextMenu.AutoClose = true; // Dismisses instantly when clicking anywhere outside!
+            _contextMenu.ShowImageMargin = false;
+            _contextMenu.Font = GetBestFont(new[] { "Hind Siliguri", "Nirmala UI", "Segoe UI" }, 9.5f, FontStyle.Regular);
 
-            var toggleItem = new ToolStripMenuItem("ভাষা পরিবর্তন (F12)", null, (s, e) =>
+            var toggleItem = new ToolStripMenuItem("🔄  ভাষা পরিবর্তন (F12)", null, (s, e) =>
             {
                 if (_hook != null) _hook.ToggleMode();
             });
@@ -111,34 +168,49 @@ namespace Banglish.UI
             _contextMenu.Items.Add(toggleItem);
 
 #if VOICE_BETA
-            var voiceItem = new ToolStripMenuItem("ভয়েস টাইপিং (Ctrl+F12)", null, (s, e) =>
+            var voiceItem = new ToolStripMenuItem("🎙️  ভয়েস টাইপিং (Ctrl+F12)", null, (s, e) =>
             {
                 VoiceTypingManager.Shared.ToggleVoiceTyping();
             });
             _contextMenu.Items.Add(voiceItem);
 #endif
 
-            var resetPosItem = new ToolStripMenuItem("পজিশন রিসেট করুন", null, (s, e) =>
+            var resetPosItem = new ToolStripMenuItem("📍  পজিশন রিসেট করুন", null, (s, e) =>
             {
                 SetDefaultPosition();
             });
 
-            var hideItem = new ToolStripMenuItem("টগল বার লুকান", null, (s, e) =>
+            var hideItem = new ToolStripMenuItem("👁️  টগল বার লুকান", null, (s, e) =>
             {
+                _userClosed = true;
                 this.Hide();
             });
 
-            var exitItem = new ToolStripMenuItem("বন্ধ করুন (Exit Banglish)", null, (s, e) =>
+            var exitItem = new ToolStripMenuItem("❌  বন্ধ করুন (Exit Banglish)", null, (s, e) =>
             {
+                _userClosed = true;
                 Application.Exit();
             });
-            exitItem.ForeColor = Color.Red;
+            exitItem.ForeColor = Color.FromArgb(248, 113, 113); // Soft red
 
             _contextMenu.Items.Add(new ToolStripSeparator());
             _contextMenu.Items.Add(resetPosItem);
             _contextMenu.Items.Add(hideItem);
             _contextMenu.Items.Add(new ToolStripSeparator());
             _contextMenu.Items.Add(exitItem);
+
+            _contextMenu.Opened += (s, e) =>
+            {
+                try
+                {
+                    if (Environment.OSVersion.Version.Build >= 22000)
+                    {
+                        int corner = 2;
+                        DwmSetWindowAttribute(_contextMenu.Handle, 33, ref corner, sizeof(int));
+                    }
+                }
+                catch {}
+            };
 
             this.ContextMenuStrip = _contextMenu;
 
@@ -180,27 +252,18 @@ namespace Banglish.UI
 
         public void SetDefaultPosition()
         {
-            Rectangle bounds = Screen.PrimaryScreen.Bounds;
             Rectangle wa = Screen.PrimaryScreen.WorkingArea;
 
-            int taskbarHeight = bounds.Bottom - wa.Bottom;
-            int x = bounds.Right - this.Width - 250; // Sits nicely to the left of the Windows 10/11 system tray icons
-            int y;
+            // Float cleanly 6 pixels ABOVE the taskbar in the bottom-right corner
+            // This ensures the Windows 11 taskbar NEVER occludes or redraws over the widget!
+            int x = wa.Right - this.Width - 16;
+            int y = wa.Bottom - this.Height - 6;
 
-            if (taskbarHeight >= 36)
-            {
-                // Sits centered right on the taskbar
-                y = wa.Bottom + (taskbarHeight - this.Height) / 2;
-            }
-            else
-            {
-                // Floating just above the taskbar in the bottom-right corner
-                y = wa.Bottom - this.Height - 6;
-                x = wa.Right - this.Width - 16;
-            }
+            if (x < 0) x = 16;
+            if (y < 0) y = 16;
 
-            if (x < 0) x = wa.Right - this.Width - 16;
             this.Location = new Point(x, y);
+            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
         }
 
         public void SetMode(bool isBangla)

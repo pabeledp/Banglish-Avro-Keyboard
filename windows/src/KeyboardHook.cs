@@ -28,6 +28,9 @@ namespace Banglish.Core
 
         public event Action<string, List<string>, int> CandidatesChanged;
         public event Action<bool> ModeToggled;
+        public event Action VoiceHotkeyPressed;
+
+        private long _lastToggleTick = 0;
 
         public KeyboardHook()
         {
@@ -94,6 +97,14 @@ namespace Banglish.Core
 
         public void ToggleMode()
         {
+            long now = Environment.TickCount;
+            if (now - _lastToggleTick < 300)
+            {
+                // Prevent duplicate rapid triggers (e.g. from simultaneous hook & hotkey)
+                return;
+            }
+            _lastToggleTick = now;
+
             IsEnabled = !IsEnabled;
             Buffer.Clear();
             _lastComposed = "";
@@ -117,11 +128,29 @@ namespace Banglish.Core
 
                 System.Windows.Forms.Keys key = (System.Windows.Forms.Keys)hookStruct.vkCode;
 
-                // Toggle Key: F12
+                // Check Modifier Keys
+                bool ctrlPressed = (GetKeyState(0x11 /*VK_CONTROL*/) & 0x8000) != 0;
+                bool altPressed = (GetKeyState(0x12 /*VK_MENU*/) & 0x8000) != 0;
+                bool shiftPressed = (GetKeyState(0x10 /*VK_SHIFT*/) & 0x8000) != 0;
+
+                // Handle F12 Hotkeys cleanly
                 if (key == System.Windows.Forms.Keys.F12)
                 {
-                    ToggleMode();
-                    return (IntPtr)1;
+                    if (ctrlPressed && !altPressed && !shiftPressed)
+                    {
+                        // Ctrl + F12: Voice Typing Toggle
+                        if (VoiceHotkeyPressed != null)
+                        {
+                            VoiceHotkeyPressed();
+                        }
+                        return (IntPtr)1;
+                    }
+                    else if (!ctrlPressed && !altPressed && !shiftPressed)
+                    {
+                        // Plain F12: Language Mode Toggle
+                        ToggleMode();
+                        return (IntPtr)1;
+                    }
                 }
 
                 if (!IsEnabled)
@@ -468,6 +497,9 @@ namespace Banglish.Core
 
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll")]
+        private static extern short GetKeyState(int nVirtKey);
 
         [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern IntPtr GetModuleHandle(string lpModuleName);
