@@ -95,6 +95,9 @@ namespace Banglish.Core
             {
                 try
                 {
+                    var asm = typeof(BanglishDictionary).Assembly;
+
+                    // 1. Load words
                     string dictPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "words.txt");
                     if (!File.Exists(dictPath))
                     {
@@ -105,21 +108,38 @@ namespace Banglish.Core
                     {
                         using (var reader = new StreamReader(dictPath, Encoding.UTF8))
                         {
-                            string line;
-                            lock (_lock)
+                            LoadWordsFromReader(reader);
+                        }
+                    }
+                    else
+                    {
+                        using (Stream gzStream = asm.GetManifestResourceStream("words.txt.gz"))
+                        {
+                            if (gzStream != null)
                             {
-                                while ((line = reader.ReadLine()) != null)
+                                using (var gz = new System.IO.Compression.GZipStream(gzStream, System.IO.Compression.CompressionMode.Decompress))
+                                using (var reader = new StreamReader(gz, Encoding.UTF8))
                                 {
-                                    string trimmed = line.Trim();
-                                    if (!string.IsNullOrEmpty(trimmed))
+                                    LoadWordsFromReader(reader);
+                                }
+                            }
+                            else
+                            {
+                                using (Stream plainStream = asm.GetManifestResourceStream("words.txt"))
+                                {
+                                    if (plainStream != null)
                                     {
-                                        _words.Add(trimmed);
+                                        using (var reader = new StreamReader(plainStream, Encoding.UTF8))
+                                        {
+                                            LoadWordsFromReader(reader);
+                                        }
                                     }
                                 }
                             }
                         }
                     }
 
+                    // 2. Load autodict
                     string autoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "autodict.txt");
                     if (!File.Exists(autoPath))
                     {
@@ -130,16 +150,18 @@ namespace Banglish.Core
                     {
                         using (var reader = new StreamReader(autoPath, Encoding.UTF8))
                         {
-                            string line;
-                            lock (_lock)
+                            LoadAutodictFromReader(reader);
+                        }
+                    }
+                    else
+                    {
+                        using (Stream autoStream = asm.GetManifestResourceStream("autodict.txt"))
+                        {
+                            if (autoStream != null)
                             {
-                                while ((line = reader.ReadLine()) != null)
+                                using (var reader = new StreamReader(autoStream, Encoding.UTF8))
                                 {
-                                    string[] parts = line.Split('\t');
-                                    if (parts.Length == 2)
-                                    {
-                                        _autodict[parts[0].Trim().ToLowerInvariant()] = parts[1].Trim();
-                                    }
+                                    LoadAutodictFromReader(reader);
                                 }
                             }
                         }
@@ -149,6 +171,38 @@ namespace Banglish.Core
                 }
                 catch {}
             });
+        }
+
+        private void LoadWordsFromReader(TextReader reader)
+        {
+            string line;
+            lock (_lock)
+            {
+                while ((line = reader.ReadLine()) != null)
+                {
+                    string trimmed = line.Trim();
+                    if (!string.IsNullOrEmpty(trimmed))
+                    {
+                        _words.Add(trimmed);
+                    }
+                }
+            }
+        }
+
+        private void LoadAutodictFromReader(TextReader reader)
+        {
+            string line;
+            lock (_lock)
+            {
+                while ((line = reader.ReadLine()) != null)
+                {
+                    string[] parts = line.Split('\t');
+                    if (parts.Length == 2)
+                    {
+                        _autodict[parts[0].Trim().ToLowerInvariant()] = parts[1].Trim();
+                    }
+                }
+            }
         }
 
         public bool Contains(string word)

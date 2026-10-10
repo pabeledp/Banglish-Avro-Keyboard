@@ -551,33 +551,132 @@ namespace Banglish.Setup
                 }
 
                 string sourceDir = AppDomain.CurrentDomain.BaseDirectory;
-                string[] filesToCopy = new string[] { "Banglish.exe", "words.txt", "Banglish-Logo.png", "app.ico" };
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
 
-                foreach (var file in filesToCopy)
+                // 1. Banglish.exe
+                string dstExe = Path.Combine(targetFolder, "Banglish.exe");
+                string srcExe = Path.Combine(sourceDir, "Banglish.exe");
+                if (File.Exists(srcExe) && !string.Equals(srcExe, dstExe, StringComparison.OrdinalIgnoreCase))
                 {
-                    string src = Path.Combine(sourceDir, file);
-                    string dst = Path.Combine(targetFolder, file);
-                    if (File.Exists(src))
+                    File.Copy(srcExe, dstExe, true);
+                }
+                else if (!File.Exists(dstExe))
+                {
+                    using (Stream s = asm.GetManifestResourceStream("Banglish.exe"))
                     {
-                        File.Copy(src, dst, true);
-                    }
-                    else
-                    {
-                        var asm = System.Reflection.Assembly.GetExecutingAssembly();
-                        using (Stream s = asm.GetManifestResourceStream(file))
+                        if (s != null)
                         {
-                            if (s != null)
+                            using (FileStream fs = new FileStream(dstExe, FileMode.Create, FileAccess.Write))
                             {
-                                using (FileStream fs = new FileStream(dst, FileMode.Create, FileAccess.Write))
+                                s.CopyTo(fs);
+                            }
+                        }
+                    }
+                }
+
+                // 2. words.txt (handles plain and words.txt.gz decompression)
+                string dstWords = Path.Combine(targetFolder, "words.txt");
+                string srcWords = Path.Combine(sourceDir, "words.txt");
+                if (File.Exists(srcWords) && !string.Equals(srcWords, dstWords, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(srcWords, dstWords, true);
+                }
+                else
+                {
+                    using (Stream gz = asm.GetManifestResourceStream("words.txt.gz"))
+                    {
+                        if (gz != null)
+                        {
+                            using (var decompressor = new System.IO.Compression.GZipStream(gz, System.IO.Compression.CompressionMode.Decompress))
+                            using (FileStream fs = new FileStream(dstWords, FileMode.Create, FileAccess.Write))
+                            {
+                                decompressor.CopyTo(fs);
+                            }
+                        }
+                        else
+                        {
+                            using (Stream s = asm.GetManifestResourceStream("words.txt"))
+                            {
+                                if (s != null)
                                 {
-                                    s.CopyTo(fs);
+                                    using (FileStream fs = new FileStream(dstWords, FileMode.Create, FileAccess.Write))
+                                    {
+                                        s.CopyTo(fs);
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
+                // 3. autodict.txt
+                string dstAuto = Path.Combine(targetFolder, "autodict.txt");
+                string srcAuto = Path.Combine(sourceDir, "autodict.txt");
+                if (File.Exists(srcAuto) && !string.Equals(srcAuto, dstAuto, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(srcAuto, dstAuto, true);
+                }
+                else
+                {
+                    using (Stream s = asm.GetManifestResourceStream("autodict.txt"))
+                    {
+                        if (s != null)
+                        {
+                            using (FileStream fs = new FileStream(dstAuto, FileMode.Create, FileAccess.Write))
+                            {
+                                s.CopyTo(fs);
+                            }
+                        }
+                    }
+                }
+
+                // 4. Banglish-Logo.png
+                string dstLogo = Path.Combine(targetFolder, "Banglish-Logo.png");
+                string srcLogo = Path.Combine(sourceDir, "Banglish-Logo.png");
+                if (File.Exists(srcLogo) && !string.Equals(srcLogo, dstLogo, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(srcLogo, dstLogo, true);
+                }
+                else
+                {
+                    using (Stream s = asm.GetManifestResourceStream("Banglish-Logo.png"))
+                    {
+                        if (s != null)
+                        {
+                            using (FileStream fs = new FileStream(dstLogo, FileMode.Create, FileAccess.Write))
+                            {
+                                s.CopyTo(fs);
+                            }
+                        }
+                    }
+                }
+
+                // 5. app.ico
+                string dstIco = Path.Combine(targetFolder, "app.ico");
+                string srcIco = Path.Combine(sourceDir, "app.ico");
+                if (File.Exists(srcIco) && !string.Equals(srcIco, dstIco, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Copy(srcIco, dstIco, true);
+                }
+                else
+                {
+                    using (Stream s = asm.GetManifestResourceStream("app.ico"))
+                    {
+                        if (s != null)
+                        {
+                            using (FileStream fs = new FileStream(dstIco, FileMode.Create, FileAccess.Write))
+                            {
+                                s.CopyTo(fs);
+                            }
+                        }
+                    }
+                }
+
                 string installedExe = Path.Combine(targetFolder, "Banglish.exe");
+                if (!File.Exists(installedExe))
+                {
+                    throw new FileNotFoundException("ইনস্টলেশন ফাইল পাওয়া যায়নি।");
+                }
 
                 // Mark first-run flag for the welcome window
                 string flagFile = Path.Combine(targetFolder, ".first_run");

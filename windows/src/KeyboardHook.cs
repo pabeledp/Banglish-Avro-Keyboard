@@ -52,12 +52,23 @@ namespace Banglish.Core
 
         private IntPtr SetHook(HookProc proc)
         {
-            using (Process curProcess = Process.GetCurrentProcess())
-            using (ProcessModule curModule = curProcess.MainModule)
+            IntPtr hMod = IntPtr.Zero;
+            try
             {
-                return SetWindowsHookEx(WH_KEYBOARD_LL, proc,
-                    GetModuleHandle(curModule.ModuleName), 0);
+                using (Process curProcess = Process.GetCurrentProcess())
+                using (ProcessModule curModule = curProcess.MainModule)
+                {
+                    hMod = GetModuleHandle(curModule.ModuleName);
+                }
             }
+            catch {}
+
+            if (hMod == IntPtr.Zero)
+            {
+                hMod = GetModuleHandle(null);
+            }
+
+            return SetWindowsHookEx(WH_KEYBOARD_LL, proc, hMod, 0);
         }
 
         [StructLayout(LayoutKind.Sequential)]
