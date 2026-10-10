@@ -10,11 +10,10 @@
       <img src="https://img.shields.io/badge/Download%20Banglish-macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download Banglish for macOS">
     </a>
     <!-- DIRECT DOWNLOAD LINK FOR WINDOWS -->
-    <!-- Always points to the latest installer: https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe -->
+    <!-- Always points to the main stable software: https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe -->
     <!-- In future version updates, simply replace the 'windows/Banglish-Setup.exe' binary in this repo. -->
-    <!-- The download link below will always serve the latest Windows installer directly on click. -->
     <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe">
-      <img src="https://img.shields.io/badge/Download%20Banglish-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Banglish for Windows">
+      <img src="https://img.shields.io/badge/Download%20Banglish-Windows-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download Banglish for Windows">
     </a>
   </p>
 
@@ -82,12 +81,19 @@ Log out of your macOS account and log back in (or restart your Mac).
 
 ## 🪟 Banglish for Windows (Windows 10 & 11)
 
-Banglish now includes a **100% native Windows implementation** in [`windows/`](windows/README.md).
+Banglish includes a **100% native Windows implementation** in [`windows/`](windows/README.md).
 
-### Quick Run:
-1. Navigate to the `windows/` directory.
-2. Build `Banglish.exe` using `powershell -ExecutionPolicy Bypass -File .\build.ps1` or run the pre-built `Banglish.exe`.
-3. Press **`F12`** anytime to toggle Banglish (বাংলা) mode ON/OFF system-wide across Notepad, Word, Chrome, Discord, VS Code, and all Windows applications!
+### 📦 Windows Versions & Downloads (সংস্করণ তালিকা)
+
+| Version | Status | Download Link | Key Highlights |
+| :--- | :--- | :--- | :--- |
+| **v1.0.0** | 🟢 **Main / Stable** | [⬇️ **Download Banglish-Setup.exe**](https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe)<br>*(Direct: [Banglish-Setup-v1.0.0.exe](https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup-v1.0.0.exe))* | • **Official Stable Release**<br>• 100% Native & Lightweight<br>• Embedded Offline Dictionary<br>• Taskbar Corner Toggle Pill<br>• Hardware-accelerated rounded curves (`F12`) |
+| **v1.0.1-beta** | 🟣 **Beta Preview** | [⬇️ **Download Banglish-Setup-v1.0.1-beta.exe**](https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup-v1.0.1-beta.exe) | • **Bengali Voice Typing (Speech-to-Text)**<br>• Google Cloud Speech Engine integration<br>• Animated floating voice HUD visualizer<br>• Voice Hotkey: `Ctrl + F12` & Taskbar Mic icon |
+
+### Quick Usage:
+1. Run `Banglish-Setup.exe` (Main Stable) or `Banglish-Setup-v1.0.1-beta.exe` (Beta with Voice Typing).
+2. Press **`F12`** anytime to toggle Banglish (বাংলা) mode ON/OFF system-wide across Notepad, Word, Chrome, Discord, VS Code, and all Windows applications!
+3. In Beta: Press **`Ctrl + F12`** or click the microphone icon on the taskbar toggle bar to speak in Bengali!
 
 ---
 

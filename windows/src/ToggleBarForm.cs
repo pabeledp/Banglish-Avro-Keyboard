@@ -5,6 +5,9 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using Banglish.Core;
+#if VOICE_BETA
+using Banglish.Voice;
+#endif
 
 namespace Banglish.UI
 {
@@ -26,6 +29,7 @@ namespace Banglish.UI
         private Point _formStartPos;
         private bool _hasDragged = false;
         private bool _isHovered = false;
+        private bool _isMicHovered = false;
 
         private ContextMenuStrip _contextMenu;
 
@@ -86,7 +90,11 @@ namespace Banglish.UI
             this.ShowInTaskbar = false;
             this.TopMost = true;
             this.DoubleBuffered = true;
-            this.Size = new Size(100, 32);
+#if VOICE_BETA
+            this.Size = new Size(130, 32); // Expanded in Beta to fit Mic button
+#else
+            this.Size = new Size(100, 32); // Standard Stable width
+#endif
             this.Cursor = Cursors.Hand;
             this.BackColor = Color.FromArgb(30, 41, 59);
 
@@ -99,6 +107,16 @@ namespace Banglish.UI
                 if (_hook != null) _hook.ToggleMode();
             });
             toggleItem.Font = new Font(toggleItem.Font, FontStyle.Bold);
+
+            _contextMenu.Items.Add(toggleItem);
+
+#if VOICE_BETA
+            var voiceItem = new ToolStripMenuItem("ভয়েস টাইপিং (Ctrl+F12)", null, (s, e) =>
+            {
+                VoiceTypingManager.Shared.ToggleVoiceTyping();
+            });
+            _contextMenu.Items.Add(voiceItem);
+#endif
 
             var resetPosItem = new ToolStripMenuItem("পজিশন রিসেট করুন", null, (s, e) =>
             {
@@ -116,7 +134,6 @@ namespace Banglish.UI
             });
             exitItem.ForeColor = Color.Red;
 
-            _contextMenu.Items.Add(toggleItem);
             _contextMenu.Items.Add(new ToolStripSeparator());
             _contextMenu.Items.Add(resetPosItem);
             _contextMenu.Items.Add(hideItem);
@@ -130,7 +147,7 @@ namespace Banglish.UI
             this.MouseMove += ToggleBarForm_MouseMove;
             this.MouseUp += ToggleBarForm_MouseUp;
             this.MouseEnter += (s, e) => { _isHovered = true; this.Invalidate(); };
-            this.MouseLeave += (s, e) => { _isHovered = false; this.Invalidate(); };
+            this.MouseLeave += (s, e) => { _isHovered = false; _isMicHovered = false; this.Invalidate(); };
 
             UpdateRegion();
         }
@@ -210,6 +227,15 @@ namespace Banglish.UI
 
         private void ToggleBarForm_MouseMove(object sender, MouseEventArgs e)
         {
+#if VOICE_BETA
+            bool overMic = (e.X >= 74 && e.X <= 98);
+            if (overMic != _isMicHovered)
+            {
+                _isMicHovered = overMic;
+                this.Invalidate();
+            }
+#endif
+
             if (e.Button == MouseButtons.Left)
             {
                 Point cur = Cursor.Position;
@@ -230,7 +256,17 @@ namespace Banglish.UI
             {
                 if (!_hasDragged)
                 {
-                    // Clean, reliable click without drag -> Toggle Language immediately!
+#if VOICE_BETA
+                    // Check if clicked the Microphone button (X: 74 to 98)
+                    if (e.X >= 74 && e.X <= 98)
+                    {
+                        VoiceTypingManager.Shared.ToggleVoiceTyping();
+                        this.Invalidate();
+                        _hasDragged = false;
+                        return;
+                    }
+#endif
+                    // Toggle language mode
                     if (_hook != null)
                     {
                         _hook.ToggleMode();
@@ -296,7 +332,7 @@ namespace Banglish.UI
             // Draw Logo
             if (_logoImg != null)
             {
-                g.DrawImage(_logoImg, new Rectangle(7, 6, 20, 20));
+                g.DrawImage(_logoImg, new Rectangle(6, 6, 20, 20));
             }
 
             // Draw Language Text
@@ -306,16 +342,72 @@ namespace Banglish.UI
                 : GetBestFont(new[] { "Creato Display", "Segoe UI" }, 10f, FontStyle.Bold))
             using (var brush = new SolidBrush(Color.White))
             {
-                g.DrawString(label, font, brush, 30, 6);
+                g.DrawString(label, font, brush, 28, 6);
             }
 
+#if VOICE_BETA
+            // Divider Line before Mic
+            using (var divPen = new Pen(Color.FromArgb(90, 255, 255, 255), 1f))
+            {
+                g.DrawLine(divPen, 72, 7, 72, 25);
+            }
+
+            // Draw Microphone Button (X: 74 to 98)
+            bool isRecording = VoiceTypingManager.Shared.IsRecording;
+            Rectangle micRect = new Rectangle(74, 5, 24, 22);
+
+            if (_isMicHovered || isRecording)
+            {
+                Color micBg = isRecording ? Color.FromArgb(220, 239, 68, 68) : Color.FromArgb(60, 255, 255, 255);
+                using (var micPill = GetRoundedRectPath(micRect, 6))
+                using (var brush = new SolidBrush(micBg))
+                {
+                    g.FillPath(brush, micPill);
+                }
+            }
+
+            DrawVectorMic(g, micRect, isRecording);
+
             // Draw F12 Pill Tag
+            using (var f12Brush = new SolidBrush(Color.FromArgb(190, 255, 255, 255)))
+            using (var f12Font = new Font("Segoe UI", 7.5f, FontStyle.Regular))
+            {
+                g.DrawString("F12", f12Font, f12Brush, 102, 9);
+            }
+#else
+            // Draw F12 Pill Tag in Stable Mode
             using (var f12Brush = new SolidBrush(Color.FromArgb(180, 255, 255, 255)))
             using (var f12Font = new Font("Segoe UI", 7.5f, FontStyle.Regular))
             {
                 g.DrawString("F12", f12Font, f12Brush, 72, 9);
             }
+#endif
         }
+
+#if VOICE_BETA
+        private void DrawVectorMic(Graphics g, Rectangle rect, bool isRecording)
+        {
+            Color micColor = isRecording ? Color.White : Color.FromArgb(240, 255, 255, 255);
+            int cx = rect.X + rect.Width / 2;
+            int cy = rect.Y + 3;
+
+            // Mic capsule
+            using (var brush = new SolidBrush(micColor))
+            {
+                g.FillRectangle(brush, cx - 2, cy + 2, 5, 7);
+                g.FillEllipse(brush, cx - 2, cy, 5, 5);
+                g.FillEllipse(brush, cx - 2, cy + 6, 5, 5);
+            }
+
+            // Mic cradle
+            using (var pen = new Pen(micColor, 1.2f))
+            {
+                g.DrawArc(pen, cx - 5, cy + 3, 10, 9, 0, 180);
+                g.DrawLine(pen, cx, cy + 12, cx, cy + 15);
+                g.DrawLine(pen, cx - 3, cy + 15, cx + 3, cy + 15);
+            }
+        }
+#endif
 
         #region Win32 Non-Activating Window Properties
         protected override bool ShowWithoutActivation
@@ -330,7 +422,6 @@ namespace Banglish.UI
                 CreateParams cp = base.CreateParams;
                 cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE (Crucial: never steals focus from active typing window)
                 cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW (don't show in taskbar or Alt+Tab)
-                // Note: CS_DROPSHADOW is intentionally excluded to prevent ugly rectangular shadow artifacts around curved edges
                 return cp;
             }
         }
