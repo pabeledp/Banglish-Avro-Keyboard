@@ -92,6 +92,17 @@ namespace Banglish.Core
             TriggerCandidatesUpdate();
         }
 
+        public void ToggleMode()
+        {
+            IsEnabled = !IsEnabled;
+            Buffer.Clear();
+            _lastComposed = "";
+            _currentCandidates.Clear();
+            _selectedCandidateIndex = 0;
+            TriggerCandidatesUpdate();
+            if (ModeToggled != null) ModeToggled(IsEnabled);
+        }
+
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
             if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
@@ -109,13 +120,7 @@ namespace Banglish.Core
                 // Toggle Key: F12
                 if (key == System.Windows.Forms.Keys.F12)
                 {
-                    IsEnabled = !IsEnabled;
-                    Buffer.Clear();
-                    _lastComposed = "";
-                    _currentCandidates.Clear();
-                    _selectedCandidateIndex = 0;
-                    TriggerCandidatesUpdate();
-                    if (ModeToggled != null) ModeToggled(IsEnabled);
+                    ToggleMode();
                     return (IntPtr)1;
                 }
 

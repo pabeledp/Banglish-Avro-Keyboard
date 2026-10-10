@@ -32,7 +32,7 @@ Write-Host "========================================================" -Foregroun
 Write-Host "1. Compiling Banglish.exe (Main Application)..." -ForegroundColor Green
 Write-Host "========================================================" -ForegroundColor Cyan
 
-& $csc /nologo /target:winexe /platform:anycpu /win32icon:app.ico /resource:Banglish-Logo.png /resource:app.ico /resource:words.txt.gz /resource:autodict.txt /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Core.dll src\AvroData.cs src\BanglishEngine.cs src\BanglishDictionary.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\WelcomeForm.cs src\TrayApp.cs
+& $csc /nologo /target:winexe /platform:anycpu /win32icon:app.ico /resource:Banglish-Logo.png /resource:app.ico /resource:words.txt.gz /resource:autodict.txt /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Core.dll src\AvroData.cs src\BanglishEngine.cs src\BanglishDictionary.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\ToggleBarForm.cs src\WelcomeForm.cs src\TrayApp.cs
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "`nFailed to build Banglish.exe!" -ForegroundColor Red

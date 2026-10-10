@@ -13,6 +13,7 @@ namespace Banglish
         private NotifyIcon trayIcon;
         private KeyboardHook hook;
         private CandidateForm candidateWindow;
+        private ToggleBarForm toggleWidget;
 
         public TrayApplication()
         {
@@ -24,6 +25,9 @@ namespace Banglish
             candidateWindow = new CandidateForm();
 
             hook = new KeyboardHook();
+
+            toggleWidget = new ToggleBarForm(hook);
+            toggleWidget.Show();
 
             candidateWindow.OnSelectCandidate = (chosen) =>
             {
@@ -52,6 +56,11 @@ namespace Banglish
                         candidateWindow.Hide();
                 }
 
+                if (toggleWidget != null)
+                {
+                    toggleWidget.SetMode(enabled);
+                }
+
                 string msg = enabled ? "Banglish (বাংলা) Mode Active" : "English Mode Active";
                 trayIcon.ShowBalloonTip(1500, "Banglish Keyboard", msg + "\nPress F12 anytime to switch.", ToolTipIcon.Info);
             };
@@ -59,8 +68,12 @@ namespace Banglish
             ContextMenuStrip contextMenu = new ContextMenuStrip();
             ToolStripMenuItem toggleItem = new ToolStripMenuItem("Toggle Banglish (F12)", null, (s, e) =>
             {
-                hook.IsEnabled = !hook.IsEnabled;
-                if (!hook.IsEnabled) candidateWindow.Hide();
+                hook.ToggleMode();
+            });
+            ToolStripMenuItem toggleBarItem = new ToolStripMenuItem("টগল বার দেখান / লুকান", null, (s, e) =>
+            {
+                if (toggleWidget.Visible) toggleWidget.Hide();
+                else toggleWidget.Show();
             });
             ToolStripMenuItem welcomeItem = new ToolStripMenuItem("Welcome & Quick Guide", null, (s, e) => new WelcomeForm().Show());
             ToolStripMenuItem testItem = new ToolStripMenuItem("Open Transliteration Tester", null, (s, e) => OpenTestWindow());
@@ -68,6 +81,7 @@ namespace Banglish
             ToolStripMenuItem exitItem = new ToolStripMenuItem("Exit Banglish", null, (s, e) => ExitApp());
 
             contextMenu.Items.Add(toggleItem);
+            contextMenu.Items.Add(toggleBarItem);
             contextMenu.Items.Add(welcomeItem);
             contextMenu.Items.Add(testItem);
             contextMenu.Items.Add(new ToolStripSeparator());
@@ -131,11 +145,19 @@ namespace Banglish
             {
                 Icon = appIcon,
                 ContextMenuStrip = contextMenu,
-                Text = "Banglish — Native Bangla Keyboard for Windows",
+                Text = "Banglish — Native Bangla Keyboard for Windows (F12)",
                 Visible = true
             };
 
-            trayIcon.ShowBalloonTip(2500, "Banglish Keyboard Running", "Banglish is active in System Tray.\nPress F12 to toggle Bangla (বাংলা) mode.", ToolTipIcon.Info);
+            trayIcon.MouseClick += (s, e) =>
+            {
+                if (e.Button == MouseButtons.Left)
+                {
+                    hook.ToggleMode();
+                }
+            };
+
+            trayIcon.ShowBalloonTip(2500, "Banglish Keyboard Running", "Banglish is active in System Tray & Corner Toggle.\nPress F12 or click the corner toggle to switch.", ToolTipIcon.Info);
 
             hook.Start();
         }
@@ -216,9 +238,15 @@ namespace Banglish
 
         private void ExitApp()
         {
-            hook.Stop();
-            hook.Dispose();
-            trayIcon.Visible = false;
+            try
+            {
+                if (toggleWidget != null) toggleWidget.Close();
+                if (candidateWindow != null) candidateWindow.Close();
+                hook.Stop();
+                hook.Dispose();
+                trayIcon.Visible = false;
+            }
+            catch {}
             Application.Exit();
         }
 
