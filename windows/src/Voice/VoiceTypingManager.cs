@@ -82,6 +82,12 @@ namespace Banglish.Voice
             {
                 _currentPhraseStream = new MemoryStream();
             }
+            lock (_seqLock)
+            {
+                _chunkSeqCounter = 0;
+                _nextTypeSeq = 0;
+                _pendingTranscripts.Clear();
+            }
             _isSpeaking = false;
             _silenceDurationMs = 0;
             _totalSilenceDurationMs = 0;
@@ -128,6 +134,11 @@ namespace Banglish.Voice
             }
         }
 
+        private long _chunkSeqCounter = 0;
+        private long _nextTypeSeq = 0;
+        private readonly System.Collections.Generic.SortedDictionary<long, string> _pendingTranscripts = new System.Collections.Generic.SortedDictionary<long, string>();
+        private readonly object _seqLock = new object();
+
         private void OnAudioChunk(byte[] chunk, float peak)
         {
             if (!IsRecording) return;
@@ -150,18 +161,18 @@ namespace Banglish.Voice
                     _silenceDurationMs += 100;
                     _totalSilenceDurationMs += 100;
 
-                    // Preserve natural speech tail (up to 200ms)
-                    if (_isSpeaking || _silenceDurationMs <= 200)
+                    // Preserve natural speech tail (up to 150ms)
+                    if (_isSpeaking || _silenceDurationMs <= 150)
                     {
                         _currentPhraseStream.Write(chunk, 0, chunk.Length);
                     }
                 }
 
-                // Condition 1: Natural pause after speaking (at least 400ms speech + 450ms pause)
-                bool pauseDetected = _isSpeaking && _silenceDurationMs >= 450 && _currentPhraseStream.Length >= 12800;
+                // Condition 1: Natural quick pause after speech (>= 200ms pause with at least 0.5s audio)
+                bool pauseDetected = _isSpeaking && _silenceDurationMs >= 200 && _currentPhraseStream.Length >= 16000;
 
-                // Condition 2: Continuous long speech chunk without pause (> 2.8 seconds)
-                bool maxChunkReached = _currentPhraseStream.Length >= 89600;
+                // Condition 2: Continuous speaking slice threshold (1.2 seconds = 38400 bytes)
+                bool maxChunkReached = _currentPhraseStream.Length >= 38400;
 
                 if (pauseDetected || maxChunkReached)
                 {
@@ -186,31 +197,47 @@ namespace Banglish.Voice
 
         private void DispatchPhrase(byte[] pcmData, bool isFinal)
         {
+            long seq;
+            lock (_seqLock)
+            {
+                seq = ++_chunkSeqCounter;
+            }
+
             GoogleSpeechClient.RecognizeAsync(pcmData, (transcript, error) =>
             {
-                if (!string.IsNullOrEmpty(transcript))
+                lock (_seqLock)
                 {
-                    // Live Real-Time Injection into active document!
-                    string textToInsert = transcript + " ";
-                    KeyboardHook.ReplaceComposedText(0, textToInsert);
+                    _pendingTranscripts[seq] = transcript ?? "";
 
-                    if (IsRecording)
+                    while (_pendingTranscripts.ContainsKey(_nextTypeSeq + 1))
                     {
-                        _indicatorForm.SetState(VoiceState.Listening, "টাইপ করা হয়েছে: " + transcript);
-                    }
-                    else if (isFinal)
-                    {
-                        _indicatorForm.SetState(VoiceState.Success, transcript);
-                        ScheduleDismiss(1000);
+                        _nextTypeSeq++;
+                        string text = _pendingTranscripts[_nextTypeSeq];
+                        _pendingTranscripts.Remove(_nextTypeSeq);
+
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            // Live injection into active typing window as words are spoken!
+                            string textToInsert = text + " ";
+                            KeyboardHook.ReplaceComposedText(0, textToInsert);
+
+                            if (IsRecording)
+                            {
+                                _indicatorForm.SetState(VoiceState.Listening, "টাইপ করা হয়েছে: " + text);
+                            }
+                            else if (isFinal)
+                            {
+                                _indicatorForm.SetState(VoiceState.Success, text);
+                                ScheduleDismiss(1000);
+                            }
+                        }
                     }
                 }
-                else
+
+                if (isFinal && !IsRecording)
                 {
-                    if (isFinal && !IsRecording)
-                    {
-                        _indicatorForm.SetState(VoiceState.Success, "ভয়েস টাইপিং সমাপ্ত");
-                        ScheduleDismiss(1000);
-                    }
+                    _indicatorForm.SetState(VoiceState.Success, "ভয়েস টাইপিং সমাপ্ত");
+                    ScheduleDismiss(1000);
                 }
             });
         }

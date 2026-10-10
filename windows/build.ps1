@@ -29,7 +29,7 @@ class DictComp {
 }
 
 # Common source files
-$coreSrc = "src\AvroData.cs src\BanglishEngine.cs src\BanglishDictionary.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\ToggleBarForm.cs src\WelcomeForm.cs src\TrayApp.cs"
+$coreSrc = "src\AvroData.cs src\BanglishEngine.cs src\BanglishDictionary.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\ToggleMenuForm.cs src\ToggleBarForm.cs src\WelcomeForm.cs src\TrayApp.cs"
 $voiceSrc = "src\Voice\BanglishConfig.cs src\Voice\AudioRecorder.cs src\Voice\GoogleSpeechClient.cs src\Voice\VoiceIndicatorForm.cs src\Voice\VoiceTypingManager.cs"
 
 # ========================================================

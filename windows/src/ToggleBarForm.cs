@@ -11,37 +11,6 @@ using Banglish.Voice;
 
 namespace Banglish.UI
 {
-    public class DarkMenuColorTable : ProfessionalColorTable
-    {
-        public override Color ToolStripDropDownBackground { get { return Color.FromArgb(15, 23, 42); } }
-        public override Color ImageMarginGradientBegin { get { return Color.FromArgb(15, 23, 42); } }
-        public override Color ImageMarginGradientMiddle { get { return Color.FromArgb(15, 23, 42); } }
-        public override Color ImageMarginGradientEnd { get { return Color.FromArgb(15, 23, 42); } }
-        public override Color MenuBorder { get { return Color.FromArgb(16, 185, 129); } }
-        public override Color MenuItemBorder { get { return Color.FromArgb(16, 185, 129); } }
-        public override Color MenuItemSelected { get { return Color.FromArgb(5, 150, 105); } }
-        public override Color MenuItemSelectedGradientBegin { get { return Color.FromArgb(5, 150, 105); } }
-        public override Color MenuItemSelectedGradientEnd { get { return Color.FromArgb(4, 120, 87); } }
-        public override Color MenuItemPressedGradientBegin { get { return Color.FromArgb(4, 120, 87); } }
-        public override Color MenuItemPressedGradientEnd { get { return Color.FromArgb(6, 78, 59); } }
-        public override Color SeparatorDark { get { return Color.FromArgb(51, 65, 85); } }
-        public override Color SeparatorLight { get { return Color.FromArgb(30, 41, 59); } }
-    }
-
-    public class DarkMenuRenderer : ToolStripProfessionalRenderer
-    {
-        public DarkMenuRenderer() : base(new DarkMenuColorTable())
-        {
-            this.RoundedEdges = true;
-        }
-
-        protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
-        {
-            e.TextColor = Color.White;
-            base.OnRenderItemText(e);
-        }
-    }
-
     public class ToggleBarForm : Form
     {
         [DllImport("Gdi32.dll", EntryPoint = "CreateRoundRectRgn")]
@@ -71,7 +40,7 @@ namespace Banglish.UI
         private bool _isMicHovered = false;
         private bool _userClosed = false;
 
-        private ContextMenuStrip _contextMenu;
+        private ToggleMenuForm _customMenu;
         private System.Windows.Forms.Timer _keepAliveTimer;
 
         public static Font GetBestFont(string[] fontNames, float size, FontStyle style)
@@ -98,6 +67,9 @@ namespace Banglish.UI
             InitializeComponent();
             SetDefaultPosition();
 
+            // Custom UI right-click menu card
+            _customMenu = new ToggleMenuForm(_hook, this);
+
             // Heartbeat timer to guarantee toggle button never disappears or gets hidden by taskbar
             _keepAliveTimer = new System.Windows.Forms.Timer();
             _keepAliveTimer.Interval = 2500;
@@ -110,6 +82,12 @@ namespace Banglish.UI
                 SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
             };
             _keepAliveTimer.Start();
+        }
+
+        public void HideToggle()
+        {
+            _userClosed = true;
+            this.Hide();
         }
 
         private void LoadLogo()
@@ -151,68 +129,6 @@ namespace Banglish.UI
 #endif
             this.Cursor = Cursors.Hand;
             this.BackColor = Color.FromArgb(30, 41, 59);
-
-            // Custom Sleek Dark UI Context Menu
-            _contextMenu = new ContextMenuStrip();
-            _contextMenu.Renderer = new DarkMenuRenderer();
-            _contextMenu.AutoClose = true; // Dismisses instantly when clicking anywhere outside!
-            _contextMenu.ShowImageMargin = false;
-            _contextMenu.Font = GetBestFont(new[] { "Hind Siliguri", "Nirmala UI", "Segoe UI" }, 9.5f, FontStyle.Regular);
-
-            var toggleItem = new ToolStripMenuItem("🔄  ভাষা পরিবর্তন (F12)", null, (s, e) =>
-            {
-                if (_hook != null) _hook.ToggleMode();
-            });
-            toggleItem.Font = new Font(toggleItem.Font, FontStyle.Bold);
-
-            _contextMenu.Items.Add(toggleItem);
-
-#if VOICE_BETA
-            var voiceItem = new ToolStripMenuItem("🎙️  ভয়েস টাইপিং (Ctrl+F12)", null, (s, e) =>
-            {
-                VoiceTypingManager.Shared.ToggleVoiceTyping();
-            });
-            _contextMenu.Items.Add(voiceItem);
-#endif
-
-            var resetPosItem = new ToolStripMenuItem("📍  পজিশন রিসেট করুন", null, (s, e) =>
-            {
-                SetDefaultPosition();
-            });
-
-            var hideItem = new ToolStripMenuItem("👁️  টগল বার লুকান", null, (s, e) =>
-            {
-                _userClosed = true;
-                this.Hide();
-            });
-
-            var exitItem = new ToolStripMenuItem("❌  বন্ধ করুন (Exit Banglish)", null, (s, e) =>
-            {
-                _userClosed = true;
-                Application.Exit();
-            });
-            exitItem.ForeColor = Color.FromArgb(248, 113, 113); // Soft red
-
-            _contextMenu.Items.Add(new ToolStripSeparator());
-            _contextMenu.Items.Add(resetPosItem);
-            _contextMenu.Items.Add(hideItem);
-            _contextMenu.Items.Add(new ToolStripSeparator());
-            _contextMenu.Items.Add(exitItem);
-
-            _contextMenu.Opened += (s, e) =>
-            {
-                try
-                {
-                    if (Environment.OSVersion.Version.Build >= 22000)
-                    {
-                        int corner = 2;
-                        DwmSetWindowAttribute(_contextMenu.Handle, 33, ref corner, sizeof(int));
-                    }
-                }
-                catch {}
-            };
-
-            this.ContextMenuStrip = _contextMenu;
 
             this.Paint += ToggleBarForm_Paint;
             this.MouseDown += ToggleBarForm_MouseDown;
@@ -315,6 +231,16 @@ namespace Banglish.UI
 
         private void ToggleBarForm_MouseUp(object sender, MouseEventArgs e)
         {
+            if (e.Button == MouseButtons.Right)
+            {
+                if (!_hasDragged && _customMenu != null)
+                {
+                    _customMenu.ShowMenuAbove(this);
+                }
+                _hasDragged = false;
+                return;
+            }
+
             if (e.Button == MouseButtons.Left)
             {
                 if (!_hasDragged)
@@ -501,5 +427,16 @@ namespace Banglish.UI
             base.WndProc(ref m);
         }
         #endregion
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                if (_keepAliveTimer != null) { _keepAliveTimer.Stop(); _keepAliveTimer.Dispose(); }
+                if (_customMenu != null) { _customMenu.Dispose(); }
+                if (_logoImg != null) { _logoImg.Dispose(); }
+            }
+            base.Dispose(disposing);
+        }
     }
 }

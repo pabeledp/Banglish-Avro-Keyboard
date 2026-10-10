@@ -82,6 +82,17 @@ namespace Banglish.Voice
         public AudioRecorder()
         {
             _callback = WaveInCallback;
+
+            // Allocate pinned buffers once for the entire application session
+            _buffers = new byte[BUFFER_COUNT][];
+            _bufferHandles = new GCHandle[BUFFER_COUNT];
+            _headers = new WAVEHDR[BUFFER_COUNT];
+
+            for (int i = 0; i < BUFFER_COUNT; i++)
+            {
+                _buffers[i] = new byte[BUFFER_SIZE];
+                _bufferHandles[i] = GCHandle.Alloc(_buffers[i], GCHandleType.Pinned);
+            }
         }
 
         public bool StartRecording()
@@ -108,15 +119,8 @@ namespace Banglish.Voice
                 return false;
             }
 
-            _headers = new WAVEHDR[BUFFER_COUNT];
-            _bufferHandles = new GCHandle[BUFFER_COUNT];
-            _buffers = new byte[BUFFER_COUNT][];
-
             for (int i = 0; i < BUFFER_COUNT; i++)
             {
-                _buffers[i] = new byte[BUFFER_SIZE];
-                _bufferHandles[i] = GCHandle.Alloc(_buffers[i], GCHandleType.Pinned);
-
                 _headers[i] = new WAVEHDR
                 {
                     lpData = _bufferHandles[i].AddrOfPinnedObject(),
@@ -154,15 +158,18 @@ namespace Banglish.Voice
                     waveInStop(_hWaveIn);
                     waveInReset(_hWaveIn);
 
+                    // Wait briefly for native audio driver thread to finish in-flight callbacks
+                    Thread.Sleep(40);
+
                     if (_headers != null)
                     {
                         for (int i = 0; i < BUFFER_COUNT; i++)
                         {
-                            waveInUnprepareHeader(_hWaveIn, ref _headers[i], Marshal.SizeOf(typeof(WAVEHDR)));
-                            if (_bufferHandles[i].IsAllocated)
+                            try
                             {
-                                _bufferHandles[i].Free();
+                                waveInUnprepareHeader(_hWaveIn, ref _headers[i], Marshal.SizeOf(typeof(WAVEHDR)));
                             }
+                            catch {}
                         }
                     }
 
@@ -178,57 +185,76 @@ namespace Banglish.Voice
 
         private void WaveInCallback(IntPtr hwi, uint uMsg, IntPtr dwInstance, IntPtr dwParam1, IntPtr dwParam2)
         {
-            if (uMsg == WIM_DATA && IsRecording)
+            try
             {
-                WAVEHDR header = (WAVEHDR)Marshal.PtrToStructure(dwParam1, typeof(WAVEHDR));
-                int bufIndex = header.dwUser.ToInt32();
-
-                if (header.dwBytesRecorded > 0 && _buffers != null && bufIndex >= 0 && bufIndex < BUFFER_COUNT)
+                if (uMsg == WIM_DATA && IsRecording)
                 {
-                    byte[] data = _buffers[bufIndex];
-                    int bytesRead = (int)header.dwBytesRecorded;
+                    WAVEHDR header = (WAVEHDR)Marshal.PtrToStructure(dwParam1, typeof(WAVEHDR));
+                    int bufIndex = header.dwUser.ToInt32();
 
-                    if (_audioStream != null)
+                    if (header.dwBytesRecorded > 0 && _buffers != null && bufIndex >= 0 && bufIndex < BUFFER_COUNT)
                     {
-                        lock (_audioStream)
+                        byte[] data = _buffers[bufIndex];
+                        int bytesRead = (int)header.dwBytesRecorded;
+
+                        if (_audioStream != null)
                         {
-                            _audioStream.Write(data, 0, bytesRead);
+                            lock (_audioStream)
+                            {
+                                _audioStream.Write(data, 0, bytesRead);
+                            }
                         }
-                    }
 
-                    // Calculate peak level for audio visualizer
-                    float peak = 0f;
-                    for (int i = 0; i < bytesRead - 1; i += 2)
-                    {
-                        short sample = (short)(data[i] | (data[i + 1] << 8));
-                        float abs = Math.Abs(sample) / 32768f;
-                        if (abs > peak) peak = abs;
-                    }
+                        // Calculate peak level for audio visualizer (safe from Math.Abs overflow on -32768)
+                        float peak = 0f;
+                        for (int i = 0; i < bytesRead - 1; i += 2)
+                        {
+                            int sample = (short)(data[i] | (data[i + 1] << 8));
+                            float abs = Math.Abs(sample) / 32768f;
+                            if (abs > peak) peak = abs;
+                        }
 
-                    if (AudioLevelChanged != null)
-                    {
-                        AudioLevelChanged(peak);
-                    }
+                        if (AudioLevelChanged != null)
+                        {
+                            AudioLevelChanged(peak);
+                        }
 
-                    if (AudioChunkReceived != null)
-                    {
-                        byte[] chunk = new byte[bytesRead];
-                        Buffer.BlockCopy(data, 0, chunk, 0, bytesRead);
-                        AudioChunkReceived(chunk, peak);
-                    }
+                        if (AudioChunkReceived != null)
+                        {
+                            byte[] chunk = new byte[bytesRead];
+                            Buffer.BlockCopy(data, 0, chunk, 0, bytesRead);
+                            AudioChunkReceived(chunk, peak);
+                        }
 
-                    // Re-add buffer for continuous streaming
-                    if (IsRecording && _hWaveIn != IntPtr.Zero)
-                    {
-                        waveInAddBuffer(_hWaveIn, ref _headers[bufIndex], Marshal.SizeOf(typeof(WAVEHDR)));
+                        // Re-add buffer for continuous streaming
+                        if (IsRecording && _hWaveIn != IntPtr.Zero)
+                        {
+                            waveInAddBuffer(_hWaveIn, ref _headers[bufIndex], Marshal.SizeOf(typeof(WAVEHDR)));
+                        }
                     }
                 }
             }
+            catch {}
         }
 
         public void Dispose()
         {
             StopRecording();
+
+            if (_bufferHandles != null)
+            {
+                for (int i = 0; i < _bufferHandles.Length; i++)
+                {
+                    try
+                    {
+                        if (_bufferHandles[i].IsAllocated)
+                        {
+                            _bufferHandles[i].Free();
+                        }
+                    }
+                    catch {}
+                }
+            }
         }
     }
 }
