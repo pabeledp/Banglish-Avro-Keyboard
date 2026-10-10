@@ -191,7 +191,6 @@ echo "-> Packaging DMG..."
 mkdir -p "${DMG_STAGING}"
 cp "${PKG_OUTPUT}" "${DMG_STAGING}/Install Banglish.pkg"
 cp -R "${APP_DIR}" "${DMG_STAGING}/Banglish.app"
-ln -s "/Library/Input Methods" "${DMG_STAGING}/Input Methods"
 
 cat << 'EOF' > "${DMG_STAGING}/ইনস্টল করার নিয়ম (README).txt"
 ============================================================
