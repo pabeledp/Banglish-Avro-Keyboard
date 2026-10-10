@@ -91,9 +91,9 @@ namespace Banglish.UI
             this.TopMost = true;
             this.ShowInTaskbar = false;
             this.DoubleBuffered = true;
-            this.BackColor = Color.FromArgb(16, 24, 28);
+            this.BackColor = Color.FromArgb(17, 24, 39); // Clean slate-900
             this.ForeColor = Color.White;
-            this.Size = new Size(180, 200);
+            this.Size = new Size(185, 200);
 
             this.Paint += CandidateForm_Paint;
             this.MouseDown += CandidateForm_MouseDown;
@@ -103,43 +103,46 @@ namespace Banglish.UI
         protected override void OnHandleCreated(EventArgs e)
         {
             base.OnHandleCreated(e);
-            EnableGlassBlur();
+            EnableModernWindowStyling();
         }
 
-        private void EnableGlassBlur()
+        private void EnableModernWindowStyling()
         {
-            // 1. Windows 11 Acrylic Backdrop
+            // Windows 11 Native Rounded Corners (hardware anti-aliased with perfect DWM shadow)
             try
             {
-                int backdropType = 3; // Acrylic
-                DwmSetWindowAttribute(this.Handle, 38, ref backdropType, sizeof(int));
-            }
-            catch {}
-
-            // 2. Windows 10 & 11 Acrylic Blur Behind (Clean translucent neutral dark glass)
-            try
-            {
-                var accent = new AccentPolicy
+                if (Environment.OSVersion.Version.Build >= 22000)
                 {
-                    AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
-                    AccentFlags = 2,
-                    // Clean crystal translucent glass tint (alpha=130, dark neutral slate)
-                    GradientColor = (130 << 24) | (28 << 16) | (24 << 8) | 16
-                };
+                    int cornerPref = 2; // DWMWCP_ROUND (Radius ~12px)
+                    DwmSetWindowAttribute(this.Handle, 33, ref cornerPref, sizeof(int));
 
-                int size = Marshal.SizeOf(accent);
-                IntPtr pData = Marshal.AllocHGlobal(size);
-                Marshal.StructureToPtr(accent, pData, false);
-
-                var data = new WindowCompositionAttributeData
+                    int backdropType = 3; // Acrylic backdrop
+                    DwmSetWindowAttribute(this.Handle, 38, ref backdropType, sizeof(int));
+                }
+                else
                 {
-                    Attribute = 19,
-                    Data = pData,
-                    SizeOfData = size
-                };
+                    // Windows 10 Acrylic Blur Behind
+                    var accent = new AccentPolicy
+                    {
+                        AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
+                        AccentFlags = 2,
+                        GradientColor = (180 << 24) | (24 << 16) | (20 << 8) | 16
+                    };
 
-                SetWindowCompositionAttribute(this.Handle, ref data);
-                Marshal.FreeHGlobal(pData);
+                    int size = Marshal.SizeOf(accent);
+                    IntPtr pData = Marshal.AllocHGlobal(size);
+                    Marshal.StructureToPtr(accent, pData, false);
+
+                    var data = new WindowCompositionAttributeData
+                    {
+                        Attribute = 19,
+                        Data = pData,
+                        SizeOfData = size
+                    };
+
+                    SetWindowCompositionAttribute(this.Handle, ref data);
+                    Marshal.FreeHGlobal(pData);
+                }
             }
             catch {}
         }
@@ -174,7 +177,17 @@ namespace Banglish.UI
             }
 
             this.Size = new Size(totalW, totalH);
-            this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width, this.Height, 16, 16));
+
+            if (Environment.OSVersion.Version.Build < 22000)
+            {
+                // Only on Windows 10 clip using region, but without CS_DROPSHADOW to prevent dark square artifacts
+                this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 14, 14));
+            }
+            else
+            {
+                // On Windows 11, let DWM handle hardware-accelerated rounding and smooth drop shadows
+                this.Region = null;
+            }
 
             PositionNearCaret();
             this.Invalidate();
@@ -191,8 +204,7 @@ namespace Banglish.UI
             Rectangle screen = Screen.FromPoint(caretPos).WorkingArea;
 
             int x = caretPos.X;
-            // Generous 40px spacing below typing caret so it never overlaps
-            int y = caretPos.Y + 40;
+            int y = caretPos.Y + 40; // Generous 40px spacing below typing caret so it never overlaps
 
             if (x + this.Width > screen.Right)
             {
@@ -209,6 +221,18 @@ namespace Banglish.UI
             this.Location = new Point(x, y);
         }
 
+        private static GraphicsPath GetRoundedRectPath(Rectangle rect, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
+        }
+
         private void CandidateForm_Paint(object sender, PaintEventArgs e)
         {
             Graphics g = e.Graphics;
@@ -216,21 +240,24 @@ namespace Banglish.UI
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
             Rectangle rect = this.ClientRectangle;
+            Rectangle borderRect = new Rectangle(0, 0, rect.Width - 1, rect.Height - 1);
 
-            // 1. Clean Translucent Acrylic Glass Surface (No harsh tints, crystal clean blur)
-            using (var glassBrush = new SolidBrush(Color.FromArgb(140, 16, 24, 22)))
+            // 1. Draw Sleek Rounded Acrylic Glass Surface
+            using (var path = GetRoundedRectPath(borderRect, 14))
             {
-                g.FillRectangle(glassBrush, rect);
+                using (var glassBrush = new SolidBrush(Color.FromArgb(245, 17, 24, 39))) // Rich Dark Slate (#111827)
+                {
+                    g.FillPath(glassBrush, path);
+                }
+
+                // 2. Subtle 1px Glass Rim Border (Clean, rounded, smooth)
+                using (var borderPen = new Pen(Color.FromArgb(45, 255, 255, 255), 1f))
+                {
+                    g.DrawPath(borderPen, path);
+                }
             }
 
-            // 2. Subtle 1px Glass Rim Border (Clean, rounded, smooth)
-            using (var borderPen = new Pen(Color.FromArgb(45, 255, 255, 255), 1f))
-            {
-                var borderPath = GetRoundedRectPath(new Rectangle(0, 0, rect.Width - 1, rect.Height - 1), 16);
-                g.DrawPath(borderPen, borderPath);
-            }
-
-            // 3. Header Text: "Banglish (বাংলা) • F12" (Clean minimal header, NO divider line)
+            // 3. Header Text: "Banglish (বাংলা) • F12" (Clean minimal header)
             using (var headerBrush = new SolidBrush(Color.FromArgb(160, 255, 255, 255)))
             {
                 g.DrawString("Banglish (বাংলা) • F12", fontEnglish, headerBrush, 14, 7);
@@ -248,9 +275,9 @@ namespace Banglish.UI
 
                 if (isSelected)
                 {
-                    // Selected Item: Rich Dark Green Capsule (Clean, no lines, no specular cut across text)
+                    // Selected Item: Rich Dark Green Capsule (#064E3B)
                     using (var pillPath = GetRoundedRectPath(rowRect, 8))
-                    using (var pillBrush = new SolidBrush(Color.FromArgb(220, 6, 78, 59))) // Rich Dark Green (#064E3B)
+                    using (var pillBrush = new SolidBrush(Color.FromArgb(235, 6, 78, 59)))
                     {
                         g.FillPath(pillBrush, pillPath);
                     }
@@ -289,18 +316,6 @@ namespace Banglish.UI
             }
         }
 
-        private static GraphicsPath GetRoundedRectPath(Rectangle rect, int radius)
-        {
-            GraphicsPath path = new GraphicsPath();
-            int d = radius * 2;
-            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
-            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
-            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
-            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
-            path.CloseFigure();
-            return path;
-        }
-
         private void CandidateForm_MouseMove(object sender, MouseEventArgs e)
         {
             int rowIdx = (e.Y - 28) / 30;
@@ -337,9 +352,21 @@ namespace Banglish.UI
                 CreateParams cp = base.CreateParams;
                 cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE
                 cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW
-                cp.ClassStyle |= 0x00020000; // CS_DROPSHADOW
+                // Note: CS_DROPSHADOW is intentionally excluded to avoid black rectangular edge artifacts
                 return cp;
             }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_MOUSEACTIVATE = 0x0021;
+            const int MA_NOACTIVATE = 3;
+            if (m.Msg == WM_MOUSEACTIVATE)
+            {
+                m.Result = (IntPtr)MA_NOACTIVATE;
+                return;
+            }
+            base.WndProc(ref m);
         }
     }
 }

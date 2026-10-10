@@ -110,7 +110,7 @@ namespace Banglish.Core
                 KBDLLHOOKSTRUCT hookStruct = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
 
                 // If key is injected by our own SendInput, pass it through immediately
-                if (hookStruct.dwExtraInfo == (UIntPtr)0xBA991158 || (hookStruct.flags & 0x10) != 0)
+                if ((hookStruct.flags & 0x10) != 0 || hookStruct.dwExtraInfo == (UIntPtr)0xBA991158 || (long)hookStruct.dwExtraInfo == 0xBA991158L)
                 {
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
@@ -174,8 +174,26 @@ namespace Banglish.Core
                     }
                 }
 
-                // If user clicks Space or Enter: finalize the word
-                if (key == System.Windows.Forms.Keys.Space || key == System.Windows.Forms.Keys.Return)
+                // If user clicks Space: commit current word and append space reliably
+                if (key == System.Windows.Forms.Keys.Space)
+                {
+                    if (Buffer.Length > 0)
+                    {
+                        Buffer.Clear();
+                        _lastComposed = "";
+                        _currentCandidates.Clear();
+                        _selectedCandidateIndex = 0;
+                        TriggerCandidatesUpdate();
+
+                        // Dispatch space via SendInput sequentially in same stream
+                        SendSingleChar(' ');
+                        return (IntPtr)1;
+                    }
+                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                }
+
+                // If user clicks Enter/Return: finalize word and allow Enter to pass through
+                if (key == System.Windows.Forms.Keys.Return)
                 {
                     if (Buffer.Length > 0)
                     {
@@ -391,6 +409,47 @@ namespace Banglish.Core
                     keybd_event(0, (byte)c, 0x0004, MAGIC_COOKIE);
                     keybd_event(0, (byte)c, 0x0004 | 0x0002, MAGIC_COOKIE);
                 }
+            }
+        }
+
+        public static void SendSingleChar(char c)
+        {
+            INPUT[] inputs = new INPUT[2];
+            inputs[0] = new INPUT
+            {
+                type = 1,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = (ushort)c,
+                        dwFlags = 0x0004, // KEYEVENTF_UNICODE
+                        time = 0,
+                        dwExtraInfo = MAGIC_COOKIE
+                    }
+                }
+            };
+            inputs[1] = new INPUT
+            {
+                type = 1,
+                U = new InputUnion
+                {
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = (ushort)c,
+                        dwFlags = 0x0004 | 0x0002, // KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
+                        time = 0,
+                        dwExtraInfo = MAGIC_COOKIE
+                    }
+                }
+            };
+            uint sent = SendInput(2, inputs, Marshal.SizeOf(typeof(INPUT)));
+            if (sent == 0)
+            {
+                keybd_event(0, (byte)c, 0x0004, MAGIC_COOKIE);
+                keybd_event(0, (byte)c, 0x0004 | 0x0002, MAGIC_COOKIE);
             }
         }
 

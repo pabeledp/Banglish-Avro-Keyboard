@@ -2,18 +2,69 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Forms;
 using Banglish.Core;
 using Banglish.UI;
 
 namespace Banglish
 {
+    public class HotkeyMessageWindow : NativeWindow, IDisposable
+    {
+        private const int WM_HOTKEY = 0x0312;
+        private const int HOTKEY_ID = 9112;
+        private const uint MOD_NOREPEAT = 0x4000;
+        private const uint VK_F12 = 0x7B;
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+        public event Action HotkeyPressed;
+
+        public HotkeyMessageWindow()
+        {
+            CreateHandle(new CreateParams());
+            bool ok = RegisterHotKey(this.Handle, HOTKEY_ID, MOD_NOREPEAT, VK_F12);
+            if (!ok)
+            {
+                RegisterHotKey(this.Handle, HOTKEY_ID, 0, VK_F12);
+            }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_HOTKEY && (int)m.WParam == HOTKEY_ID)
+            {
+                if (HotkeyPressed != null)
+                {
+                    HotkeyPressed();
+                }
+                return;
+            }
+            base.WndProc(ref m);
+        }
+
+        public void Dispose()
+        {
+            try
+            {
+                UnregisterHotKey(this.Handle, HOTKEY_ID);
+                DestroyHandle();
+            }
+            catch {}
+        }
+    }
+
     public class TrayApplication : ApplicationContext
     {
         private NotifyIcon trayIcon;
         private KeyboardHook hook;
         private CandidateForm candidateWindow;
         private ToggleBarForm toggleWidget;
+        private HotkeyMessageWindow hotkeyWindow;
 
         public TrayApplication()
         {
@@ -29,40 +80,59 @@ namespace Banglish
             toggleWidget = new ToggleBarForm(hook);
             toggleWidget.Show();
 
+            hotkeyWindow = new HotkeyMessageWindow();
+            hotkeyWindow.HotkeyPressed += () =>
+            {
+                if (hook != null)
+                {
+                    hook.ToggleMode();
+                }
+            };
+
             candidateWindow.OnSelectCandidate = (chosen) =>
             {
                 hook.CommitSelectedCandidate(chosen);
             };
 
+            // Non-blocking asynchronous UI dispatch prevents low-level hook timeouts
             hook.CandidatesChanged += (raw, candList, selIdx) =>
             {
-                if (candidateWindow.InvokeRequired)
+                if (candidateWindow != null && !candidateWindow.IsDisposed)
                 {
-                    candidateWindow.Invoke(new Action(() => candidateWindow.UpdateCandidates(raw, candList, selIdx)));
-                }
-                else
-                {
-                    candidateWindow.UpdateCandidates(raw, candList, selIdx);
+                    if (candidateWindow.InvokeRequired)
+                    {
+                        candidateWindow.BeginInvoke(new Action(() => candidateWindow.UpdateCandidates(raw, candList, selIdx)));
+                    }
+                    else
+                    {
+                        candidateWindow.UpdateCandidates(raw, candList, selIdx);
+                    }
                 }
             };
 
             hook.ModeToggled += (enabled) =>
             {
-                if (!enabled)
+                if (candidateWindow != null && !candidateWindow.IsDisposed)
                 {
-                    if (candidateWindow.InvokeRequired)
-                        candidateWindow.Invoke(new Action(() => candidateWindow.Hide()));
-                    else
-                        candidateWindow.Hide();
+                    if (!enabled)
+                    {
+                        if (candidateWindow.InvokeRequired)
+                            candidateWindow.BeginInvoke(new Action(() => candidateWindow.Hide()));
+                        else
+                            candidateWindow.Hide();
+                    }
                 }
 
-                if (toggleWidget != null)
+                if (toggleWidget != null && !toggleWidget.IsDisposed)
                 {
                     toggleWidget.SetMode(enabled);
                 }
 
-                string msg = enabled ? "Banglish (বাংলা) Mode Active" : "English Mode Active";
-                trayIcon.ShowBalloonTip(1500, "Banglish Keyboard", msg + "\nPress F12 anytime to switch.", ToolTipIcon.Info);
+                string modeName = enabled ? "Bangla (বাংলা)" : "English (ENG)";
+                if (trayIcon != null)
+                {
+                    trayIcon.Text = "Banglish — " + modeName + " (F12)";
+                }
             };
 
             ContextMenuStrip contextMenu = new ContextMenuStrip();
@@ -145,7 +215,7 @@ namespace Banglish
             {
                 Icon = appIcon,
                 ContextMenuStrip = contextMenu,
-                Text = "Banglish — Native Bangla Keyboard for Windows (F12)",
+                Text = "Banglish — Bangla (বাংলা) (F12)",
                 Visible = true
             };
 
@@ -156,8 +226,6 @@ namespace Banglish
                     hook.ToggleMode();
                 }
             };
-
-            trayIcon.ShowBalloonTip(2500, "Banglish Keyboard Running", "Banglish is active in System Tray & Corner Toggle.\nPress F12 or click the corner toggle to switch.", ToolTipIcon.Info);
 
             hook.Start();
         }
@@ -240,11 +308,15 @@ namespace Banglish
         {
             try
             {
+                if (hotkeyWindow != null) hotkeyWindow.Dispose();
                 if (toggleWidget != null) toggleWidget.Close();
                 if (candidateWindow != null) candidateWindow.Close();
-                hook.Stop();
-                hook.Dispose();
-                trayIcon.Visible = false;
+                if (hook != null)
+                {
+                    hook.Stop();
+                    hook.Dispose();
+                }
+                if (trayIcon != null) trayIcon.Visible = false;
             }
             catch {}
             Application.Exit();
@@ -253,20 +325,30 @@ namespace Banglish
         [STAThread]
         static void Main()
         {
-            try
+            bool createdNew;
+            using (Mutex mutex = new Mutex(true, "Banglish_Keyboard_SingleInstance_Mutex_Global", out createdNew))
             {
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-                Application.Run(new TrayApplication());
-            }
-            catch (Exception ex)
-            {
+                if (!createdNew)
+                {
+                    // An instance of Banglish is already running
+                    return;
+                }
+
                 try
                 {
-                    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ex.ToString());
+                    Application.EnableVisualStyles();
+                    Application.SetCompatibleTextRenderingDefault(false);
+                    Application.Run(new TrayApplication());
                 }
-                catch {}
-                MessageBox.Show(ex.Message, "Banglish Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                catch (Exception ex)
+                {
+                    try
+                    {
+                        File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ex.ToString());
+                    }
+                    catch {}
+                    MessageBox.Show(ex.Message, "Banglish Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
     }

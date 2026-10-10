@@ -15,12 +15,16 @@ namespace Banglish.UI
             int nLeftRect, int nTopRect, int nRightRect, int nBottomRect,
             int nWidthEllipse, int nHeightEllipse);
 
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
         private readonly KeyboardHook _hook;
         private bool _isBangla = true;
         private Image _logoImg;
 
-        private bool _isDragging = false;
-        private Point _dragStartPoint;
+        private Point _mouseDownScreenPos;
+        private Point _formStartPos;
+        private bool _hasDragged = false;
         private bool _isHovered = false;
 
         private ContextMenuStrip _contextMenu;
@@ -84,6 +88,7 @@ namespace Banglish.UI
             this.DoubleBuffered = true;
             this.Size = new Size(100, 32);
             this.Cursor = Cursors.Hand;
+            this.BackColor = Color.FromArgb(30, 41, 59);
 
             // Context Menu on Right Click
             _contextMenu = new ContextMenuStrip();
@@ -130,9 +135,30 @@ namespace Banglish.UI
             UpdateRegion();
         }
 
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            try
+            {
+                if (Environment.OSVersion.Version.Build >= 22000)
+                {
+                    int cornerPref = 2; // DWMWCP_ROUND (Windows 11 Native Rounded Corners)
+                    DwmSetWindowAttribute(this.Handle, 33, ref cornerPref, sizeof(int));
+                }
+            }
+            catch {}
+        }
+
         private void UpdateRegion()
         {
-            this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width, this.Height, 14, 14));
+            if (Environment.OSVersion.Version.Build < 22000)
+            {
+                this.Region = Region.FromHrgn(CreateRoundRectRgn(0, 0, this.Width + 1, this.Height + 1, 14, 14));
+            }
+            else
+            {
+                this.Region = null;
+            }
         }
 
         public void SetDefaultPosition()
@@ -141,12 +167,12 @@ namespace Banglish.UI
             Rectangle wa = Screen.PrimaryScreen.WorkingArea;
 
             int taskbarHeight = bounds.Bottom - wa.Bottom;
-            int x = bounds.Right - this.Width - 250; // Just to the left of the Windows 10/11 system tray icons
+            int x = bounds.Right - this.Width - 250; // Sits nicely to the left of the Windows 10/11 system tray icons
             int y;
 
             if (taskbarHeight >= 36)
             {
-                // Sits centered right on the taskbar!
+                // Sits centered right on the taskbar
                 y = wa.Bottom + (taskbarHeight - this.Height) / 2;
             }
             else
@@ -164,7 +190,7 @@ namespace Banglish.UI
         {
             if (this.InvokeRequired)
             {
-                this.Invoke(new Action(() => SetMode(isBangla)));
+                this.BeginInvoke(new Action(() => SetMode(isBangla)));
                 return;
             }
 
@@ -176,8 +202,9 @@ namespace Banglish.UI
         {
             if (e.Button == MouseButtons.Left)
             {
-                _isDragging = false;
-                _dragStartPoint = e.Location;
+                _mouseDownScreenPos = Cursor.Position;
+                _formStartPos = this.Location;
+                _hasDragged = false;
             }
         }
 
@@ -185,13 +212,14 @@ namespace Banglish.UI
         {
             if (e.Button == MouseButtons.Left)
             {
-                int dx = Math.Abs(e.X - _dragStartPoint.X);
-                int dy = Math.Abs(e.Y - _dragStartPoint.Y);
-                if (dx > 4 || dy > 4)
+                Point cur = Cursor.Position;
+                int dx = Math.Abs(cur.X - _mouseDownScreenPos.X);
+                int dy = Math.Abs(cur.Y - _mouseDownScreenPos.Y);
+                if (dx > 8 || dy > 8)
                 {
-                    _isDragging = true;
-                    this.Left += (e.X - _dragStartPoint.X);
-                    this.Top += (e.Y - _dragStartPoint.Y);
+                    _hasDragged = true;
+                    this.Location = new Point(_formStartPos.X + (cur.X - _mouseDownScreenPos.X),
+                                              _formStartPos.Y + (cur.Y - _mouseDownScreenPos.Y));
                 }
             }
         }
@@ -200,16 +228,28 @@ namespace Banglish.UI
         {
             if (e.Button == MouseButtons.Left)
             {
-                if (!_isDragging)
+                if (!_hasDragged)
                 {
-                    // Click without drag -> Toggle Language!
+                    // Clean, reliable click without drag -> Toggle Language immediately!
                     if (_hook != null)
                     {
                         _hook.ToggleMode();
                     }
                 }
-                _isDragging = false;
+                _hasDragged = false;
             }
+        }
+
+        private static GraphicsPath GetRoundedRectPath(Rectangle rect, int radius)
+        {
+            GraphicsPath path = new GraphicsPath();
+            int d = radius * 2;
+            path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+            path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+            path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+            path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
         private void ToggleBarForm_Paint(object sender, PaintEventArgs e)
@@ -219,6 +259,7 @@ namespace Banglish.UI
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
             Rectangle rect = new Rectangle(0, 0, this.Width, this.Height);
+            Rectangle borderRect = new Rectangle(0, 0, this.Width - 1, this.Height - 1);
 
             Color bgTop, bgBottom, borderColor;
 
@@ -237,16 +278,19 @@ namespace Banglish.UI
                 borderColor = Color.FromArgb(148, 163, 184);
             }
 
-            // Draw Background Gradient
-            using (var brush = new LinearGradientBrush(rect, bgTop, bgBottom, 90f))
+            // Draw Background Pill with Anti-Aliasing
+            using (var path = GetRoundedRectPath(borderRect, 12))
             {
-                g.FillRectangle(brush, rect);
-            }
+                using (var brush = new LinearGradientBrush(rect, bgTop, bgBottom, 90f))
+                {
+                    g.FillPath(brush, path);
+                }
 
-            // Draw Border
-            using (var pen = new Pen(borderColor, 1f))
-            {
-                g.DrawRectangle(pen, 0, 0, this.Width - 1, this.Height - 1);
+                // Draw Border
+                using (var pen = new Pen(borderColor, 1.2f))
+                {
+                    g.DrawPath(pen, path);
+                }
             }
 
             // Draw Logo
@@ -286,9 +330,21 @@ namespace Banglish.UI
                 CreateParams cp = base.CreateParams;
                 cp.ExStyle |= 0x08000000; // WS_EX_NOACTIVATE (Crucial: never steals focus from active typing window)
                 cp.ExStyle |= 0x00000080; // WS_EX_TOOLWINDOW (don't show in taskbar or Alt+Tab)
-                cp.ClassStyle |= 0x00020000; // CS_DROPSHADOW
+                // Note: CS_DROPSHADOW is intentionally excluded to prevent ugly rectangular shadow artifacts around curved edges
                 return cp;
             }
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            const int WM_MOUSEACTIVATE = 0x0021;
+            const int MA_NOACTIVATE = 3;
+            if (m.Msg == WM_MOUSEACTIVATE)
+            {
+                m.Result = (IntPtr)MA_NOACTIVATE;
+                return;
+            }
+            base.WndProc(ref m);
         }
         #endregion
     }
