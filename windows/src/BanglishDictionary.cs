@@ -56,6 +56,33 @@ namespace Banglish.Core
             new NasalPair("ঞ্জ", "ঁজ"), new NasalPair("ন্ঠ", "ঁঠ"), new NasalPair("ন্ড", "ঁড")
         };
 
+        private readonly Dictionary<string, string> _autodict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "bank", "ব্যাংক" },
+            { "banking", "ব্যাংকিং" },
+            { "iuai", "ইউআই" },
+            { "ui", "ইউআই" },
+            { "ux", "ইউএক্স" },
+            { "ai", "এআই" },
+            { "tank", "ট্যাংক" },
+            { "rank", "র‍্যাংক" },
+            { "link", "লিংক" },
+            { "pink", "পিংক" },
+            { "sink", "সিংক" },
+            { "thanks", "থ্যাংকস" },
+            { "software", "সফটওয়্যার" },
+            { "hardware", "হার্ডওয়্যার" },
+            { "doctor", "ডাক্তার" },
+            { "hospital", "হাসপাতাল" },
+            { "police", "পুলিশ" },
+            { "card", "কার্ড" },
+            { "mobile", "মোবাইল" },
+            { "phone", "ফোন" },
+            { "office", "অফিস" },
+            { "college", "কলেজ" },
+            { "account", "অ্যাকাউন্ট" }
+        };
+
         private BanglishDictionary()
         {
             foreach (var w in SeedWords) _words.Add(w);
@@ -89,10 +116,36 @@ namespace Banglish.Core
                                         _words.Add(trimmed);
                                     }
                                 }
-                                _isLoaded = true;
                             }
                         }
                     }
+
+                    string autoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "autodict.txt");
+                    if (!File.Exists(autoPath))
+                    {
+                        autoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..\\Resources\\autodict.txt");
+                    }
+
+                    if (File.Exists(autoPath))
+                    {
+                        using (var reader = new StreamReader(autoPath, Encoding.UTF8))
+                        {
+                            string line;
+                            lock (_lock)
+                            {
+                                while ((line = reader.ReadLine()) != null)
+                                {
+                                    string[] parts = line.Split('\t');
+                                    if (parts.Length == 2)
+                                    {
+                                        _autodict[parts[0].Trim().ToLowerInvariant()] = parts[1].Trim();
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    lock (_lock) { _isLoaded = true; }
                 }
                 catch {}
             });
@@ -110,8 +163,23 @@ namespace Banglish.Core
         {
             if (string.IsNullOrEmpty(rawInput)) return new List<string>();
 
+            // Handle full stop / dot (.)
+            if (rawInput == ".")
+            {
+                return new List<string> { "।", "." };
+            }
+
+            string preferred = null;
+            lock (_lock)
+            {
+                _autodict.TryGetValue(rawInput.Trim().ToLowerInvariant(), out preferred);
+            }
+
             string primary = BanglishEngine.Shared.Transliterate(rawInput);
-            if (string.IsNullOrEmpty(primary)) return new List<string> { rawInput };
+            if (string.IsNullOrEmpty(primary))
+            {
+                return preferred != null ? new List<string> { preferred, rawInput } : new List<string> { rawInput };
+            }
 
             List<string> result = new List<string>();
             HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
@@ -127,7 +195,13 @@ namespace Banglish.Core
                 }
             };
 
-            // 1. Direct engine transliteration is always #1
+            // 1. Preferred standard spelling is always #1 if present (e.g. bank -> ব্যাংক, iuai -> ইউআই)
+            if (!string.IsNullOrEmpty(preferred))
+            {
+                addCandidate(preferred);
+            }
+
+            // 2. Direct engine transliteration
             addCandidate(primary);
 
             HashSet<string> variants = new HashSet<string>(StringComparer.Ordinal);
@@ -299,9 +373,26 @@ namespace Banglish.Core
                 if (w.IndexOf("ষ্ঠ") >= 0) variants.Add(w.Replace("ষ্ঠ", "স্থ"));
                 if (w.IndexOf("স্প") >= 0) variants.Add(w.Replace("স্প", "ষ্প"));
                 if (w.IndexOf("ষ্প") >= 0) variants.Add(w.Replace("ষ্প", "স্প"));
-                if (w.IndexOf("ঙ্ক") >= 0) variants.Add(w.Replace("ঙ্ক", "অঙ্ক"));
+                if (w.IndexOf("ঙ্ক") >= 0) variants.Add(w.Replace("ঙ্ক", "ংক"));
+                if (w.IndexOf("ংক") >= 0) variants.Add(w.Replace("ংক", "ঙ্ক"));
+                if (w.IndexOf("বাঙ্ক") >= 0) { variants.Add(w.Replace("বাঙ্ক", "ব্যাংক")); variants.Add(w.Replace("বাঙ্ক", "ব্যাঙ্ক")); }
+                if (w.IndexOf("টাঙ্ক") >= 0) { variants.Add(w.Replace("টাঙ্ক", "ট্যাংক")); variants.Add(w.Replace("টাঙ্ক", "ট্যাঙ্ক")); }
+                if (w.IndexOf("রাঙ্ক") >= 0) variants.Add(w.Replace("রাঙ্ক", "র‍্যাংক"));
+                if (w.IndexOf("লাঙ্ক") >= 0) variants.Add(w.Replace("লাঙ্ক", "লিংক"));
                 if (w.IndexOf("জ্ঞ") >= 0) variants.Add(w.Replace("জ্ঞ", "গ্য"));
                 if (w.IndexOf("ক্ষ") >= 0) variants.Add(w.Replace("ক্ষ", "খ"));
+            }
+
+            // Rule Q: English loanword short 'a' variations
+            List<string> curQ = new List<string>(variants);
+            curQ.Add(primary);
+            foreach (var w in curQ)
+            {
+                if (w.StartsWith("বা") && !w.StartsWith("বাংলাদেশ") && !w.StartsWith("বাংলা")) variants.Add("ব্যা" + w.Substring(2));
+                if (w.StartsWith("কা") && !w.StartsWith("কাজ") && !w.StartsWith("কারণ")) variants.Add("ক্যা" + w.Substring(2));
+                if (w.StartsWith("টা") && !w.StartsWith("টাকা")) variants.Add("ট্যা" + w.Substring(2));
+                if (w.StartsWith("গা") && !w.StartsWith("গান")) variants.Add("গ্যা" + w.Substring(2));
+                if (w.StartsWith("ফা")) variants.Add("ফ্যা" + w.Substring(2));
             }
 
             // Rule J: Reph & Ro-fola

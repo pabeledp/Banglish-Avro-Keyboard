@@ -180,15 +180,20 @@ class BanglishInputController: IMKInputController {
         // Full stop / Daari (.)
         if char == "." {
             if !buffer.isEmpty {
-                let chosen = CandidateWindow.shared.selectedCandidate() ?? engine.transliterate(buffer)
-                client.insertText((chosen + "।") as NSString, replacementRange: Self.emptyRange)
-                buffer.removeAll()
-                CandidateWindow.shared.hide()
-                return true
-            } else {
-                client.insertText("।" as NSString, replacementRange: Self.emptyRange)
-                return true
+                if buffer == "." {
+                    // Typing dot again ("..") directly commits "."
+                    client.insertText("." as NSString, replacementRange: Self.emptyRange)
+                    buffer.removeAll()
+                    CandidateWindow.shared.hide()
+                    return true
+                }
+                // Commit previous buffer word first
+                commitBuffer(client: client)
             }
+            buffer = "."
+            updateMarkedText(client: client)
+            updateCandidates(client: client)
+            return true
         }
 
         // Regular printable ASCII characters
@@ -209,7 +214,7 @@ class BanglishInputController: IMKInputController {
             return
         }
 
-        let converted = engine.transliterate(buffer)
+        let converted = (buffer == ".") ? "।" : engine.transliterate(buffer)
         let attrString = NSMutableAttributedString(
             string: converted,
             attributes: [
@@ -304,7 +309,8 @@ class BanglishInputController: IMKInputController {
 
     private func commitBuffer(client: any IMKTextInput) {
         guard !buffer.isEmpty else { return }
-        let textToCommit = CandidateWindow.shared.selectedCandidate() ?? engine.transliterate(buffer)
+        let fallback = (buffer == ".") ? "।" : engine.transliterate(buffer)
+        let textToCommit = CandidateWindow.shared.selectedCandidate() ?? fallback
         commitText(textToCommit, client: client)
     }
 

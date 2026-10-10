@@ -126,6 +126,9 @@ cp "${PROJECT_DIR}/Resources/MenuIcon.tiff" "${APP_DIR}/Contents/Resources/"
 if [ -f "${PROJECT_DIR}/Resources/words.txt" ]; then
     cp "${PROJECT_DIR}/Resources/words.txt" "${APP_DIR}/Contents/Resources/"
 fi
+if [ -f "${PROJECT_DIR}/Resources/autodict.txt" ]; then
+    cp "${PROJECT_DIR}/Resources/autodict.txt" "${APP_DIR}/Contents/Resources/"
+fi
 
 # 6. Codesign ad-hoc & strip xattr
 xattr -cr "${APP_DIR}"
