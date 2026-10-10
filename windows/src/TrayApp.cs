@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -325,30 +326,30 @@ namespace Banglish
         [STAThread]
         static void Main()
         {
-            bool createdNew;
-            using (Mutex mutex = new Mutex(true, "Banglish_Keyboard_SingleInstance_Mutex_Global", out createdNew))
+            try
             {
-                if (!createdNew)
+                Process current = Process.GetCurrentProcess();
+                foreach (Process p in Process.GetProcessesByName(current.ProcessName))
                 {
-                    // An instance of Banglish is already running
-                    return;
+                    if (p.Id != current.Id)
+                    {
+                        // Another instance of Banglish is already running
+                        return;
+                    }
                 }
 
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new TrayApplication());
+            }
+            catch (Exception ex)
+            {
                 try
                 {
-                    Application.EnableVisualStyles();
-                    Application.SetCompatibleTextRenderingDefault(false);
-                    Application.Run(new TrayApplication());
+                    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ex.ToString());
                 }
-                catch (Exception ex)
-                {
-                    try
-                    {
-                        File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log"), ex.ToString());
-                    }
-                    catch {}
-                    MessageBox.Show(ex.Message, "Banglish Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+                catch {}
+                MessageBox.Show(ex.Message, "Banglish Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
