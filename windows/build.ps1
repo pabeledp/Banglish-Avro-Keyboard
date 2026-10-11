@@ -72,7 +72,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-cmd.exe /c "$csc /nologo /target:winexe /platform:anycpu /win32icon:app.ico /resource:Banglish-Logo.png /resource:app.ico /resource:Banglish-v1.0.1-beta.exe /resource:words.txt.gz /resource:autodict.txt /out:Banglish-Setup-v1.0.1-beta.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\SetupWizard.cs"
+cmd.exe /c "$csc /nologo /target:winexe /define:VOICE_BETA /platform:anycpu /win32icon:app.ico /resource:Banglish-Logo.png /resource:app.ico /resource:Banglish-v1.0.1-beta.exe /resource:words.txt.gz /resource:autodict.txt /out:Banglish-Setup-v1.0.1-beta.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\SetupWizard.cs"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  [OK] windows\Banglish-v1.0.1-beta.exe (Beta Executable)" -ForegroundColor Magenta

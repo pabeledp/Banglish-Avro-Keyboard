@@ -553,22 +553,49 @@ namespace Banglish.Setup
                 string sourceDir = AppDomain.CurrentDomain.BaseDirectory;
                 var asm = System.Reflection.Assembly.GetExecutingAssembly();
 
-                // 1. Banglish.exe
+                // 1. Banglish.exe (extract whichever exe is bundled, stable or beta)
                 string dstExe = Path.Combine(targetFolder, "Banglish.exe");
                 string srcExe = Path.Combine(sourceDir, "Banglish.exe");
+                string srcBetaExe = Path.Combine(sourceDir, "Banglish-v1.0.1-beta.exe");
+
                 if (File.Exists(srcExe) && !string.Equals(srcExe, dstExe, StringComparison.OrdinalIgnoreCase))
                 {
                     File.Copy(srcExe, dstExe, true);
                 }
-                else if (!File.Exists(dstExe))
+                else if (File.Exists(srcBetaExe) && !string.Equals(srcBetaExe, dstExe, StringComparison.OrdinalIgnoreCase))
                 {
-                    using (Stream s = asm.GetManifestResourceStream("Banglish.exe"))
+                    File.Copy(srcBetaExe, dstExe, true);
+                }
+                else
+                {
+                    string exeResName = null;
+#if VOICE_BETA
+                    exeResName = "Banglish-v1.0.1-beta.exe";
+#else
+                    exeResName = "Banglish.exe";
+#endif
+                    if (asm.GetManifestResourceStream(exeResName) == null)
                     {
-                        if (s != null)
+                        foreach (string r in asm.GetManifestResourceNames())
                         {
-                            using (FileStream fs = new FileStream(dstExe, FileMode.Create, FileAccess.Write))
+                            if (r.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && !r.Contains("Setup"))
                             {
-                                s.CopyTo(fs);
+                                exeResName = r;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!string.IsNullOrEmpty(exeResName))
+                    {
+                        using (Stream s = asm.GetManifestResourceStream(exeResName))
+                        {
+                            if (s != null)
+                            {
+                                using (FileStream fs = new FileStream(dstExe, FileMode.Create, FileAccess.Write))
+                                {
+                                    s.CopyTo(fs);
+                                }
                             }
                         }
                     }
@@ -678,6 +705,18 @@ namespace Banglish.Setup
                     throw new FileNotFoundException("ইনস্টলেশন ফাইল পাওয়া যায়নি।");
                 }
 
+                // Copy uninstaller executable
+                string uninstallerPath = Path.Combine(targetFolder, "Banglish-Uninstall.exe");
+                try
+                {
+                    string currentSetup = Application.ExecutablePath;
+                    if (File.Exists(currentSetup) && !string.Equals(currentSetup, uninstallerPath, StringComparison.OrdinalIgnoreCase))
+                    {
+                        File.Copy(currentSetup, uninstallerPath, true);
+                    }
+                }
+                catch {}
+
                 // Mark first-run flag for the welcome window
                 string flagFile = Path.Combine(targetFolder, ".first_run");
                 File.WriteAllText(flagFile, "1");
@@ -712,10 +751,160 @@ namespace Banglish.Setup
                     }
                     catch {}
                 }
+
+                // Register in Windows "Installed apps" / "Apps & Features" (Programs and Features)
+                RegisterUninstall(targetFolder, installedExe, uninstallerPath);
             }
             catch (Exception ex)
             {
                 MessageBox.Show("ইনস্টলেশন ত্রুটি: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private static void RegisterUninstall(string targetFolder, string installedExe, string uninstallerPath)
+        {
+            try
+            {
+                bool isBeta = false;
+#if VOICE_BETA
+                isBeta = true;
+#else
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                foreach (string r in asm.GetManifestResourceNames())
+                {
+                    if (r.IndexOf("beta", StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        isBeta = true;
+                        break;
+                    }
+                }
+#endif
+                string appName = isBeta ? "Banglish (Beta)" : "Banglish";
+                string appVersion = isBeta ? "1.0.1-beta" : "1.0.0";
+                string regKeyName = isBeta ? "Banglish-Beta" : "Banglish";
+                string icoPath = Path.Combine(targetFolder, "app.ico");
+                if (!File.Exists(icoPath)) icoPath = installedExe;
+
+                string uninstallExeToRun = File.Exists(uninstallerPath) ? uninstallerPath : installedExe;
+                string uninstallCmd = "\"" + uninstallExeToRun + "\" --uninstall";
+                string quietUninstallCmd = uninstallCmd + " --quiet";
+
+                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName))
+                {
+                    if (key != null)
+                    {
+                        key.SetValue("DisplayName", appName);
+                        key.SetValue("DisplayVersion", appVersion);
+                        key.SetValue("DisplayIcon", icoPath + ",0");
+                        key.SetValue("Publisher", "Team FramEmpire & A M Pabel");
+                        key.SetValue("InstallLocation", targetFolder);
+                        key.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
+                        key.SetValue("EstimatedSize", 52400, Microsoft.Win32.RegistryValueKind.DWord);
+                        key.SetValue("UninstallString", uninstallCmd);
+                        key.SetValue("QuietUninstallString", quietUninstallCmd);
+                        key.SetValue("URLInfoAbout", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
+                        key.SetValue("HelpLink", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
+                        key.SetValue("NoModify", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                        key.SetValue("NoRepair", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                    }
+                }
+            }
+            catch {}
+        }
+
+        private static void PerformUninstall(bool quiet)
+        {
+            if (!quiet)
+            {
+                DialogResult res = MessageBox.Show(
+                    "আপনি কি নিশ্চিতভাবে Banglish আনইনস্টল করতে চান?",
+                    "Banglish Uninstall",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (res != DialogResult.Yes) return;
+            }
+
+            try
+            {
+                // 1. Terminate running instances
+                foreach (var p in System.Diagnostics.Process.GetProcessesByName("Banglish"))
+                {
+                    try { p.Kill(); } catch {}
+                }
+                foreach (var p in System.Diagnostics.Process.GetProcessesByName("Banglish-v1.0.1-beta"))
+                {
+                    try { p.Kill(); } catch {}
+                }
+
+                // 2. Remove Shortcuts
+                try
+                {
+                    string desktopLnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Banglish.lnk");
+                    if (File.Exists(desktopLnk)) File.Delete(desktopLnk);
+
+                    string startMenuLnk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.StartMenu), "Programs\\Banglish.lnk");
+                    if (File.Exists(startMenuLnk)) File.Delete(startMenuLnk);
+                }
+                catch {}
+
+                // 3. Remove Startup Run key
+                try
+                {
+                    using (var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true))
+                    {
+                        if (key != null)
+                        {
+                            key.DeleteValue("Banglish", false);
+                            key.DeleteValue("Banglish-Beta", false);
+                        }
+                    }
+                }
+                catch {}
+
+                // 4. Remove Uninstall keys from Registry
+                try
+                {
+                    Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Banglish", false);
+                }
+                catch {}
+                try
+                {
+                    Microsoft.Win32.Registry.CurrentUser.DeleteSubKeyTree(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\Banglish-Beta", false);
+                }
+                catch {}
+
+                // 5. Delete installation folder via background self-delete
+                string appDir = AppDomain.CurrentDomain.BaseDirectory;
+                if (appDir.EndsWith("\\") || appDir.EndsWith("/")) appDir = appDir.Substring(0, appDir.Length - 1);
+
+                if (appDir.IndexOf("Banglish", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    System.Diagnostics.ProcessStartInfo psi = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = "/c timeout /t 1 /nobreak > NUL & rmdir /s /q \"" + appDir + "\"",
+                        WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+                        CreateNoWindow = true
+                    };
+                    System.Diagnostics.Process.Start(psi);
+                }
+
+                if (!quiet)
+                {
+                    MessageBox.Show(
+                        "Banglish সফলভাবে আপনার কম্পিউটার থেকে আনইনস্টল করা হয়েছে।",
+                        "Banglish Uninstall",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (!quiet)
+                {
+                    MessageBox.Show("আনইনস্টল ত্রুটি: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
             }
         }
 
@@ -739,8 +928,15 @@ namespace Banglish.Setup
         }
 
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
+            if (args != null && args.Length > 0 && Array.Exists(args, a => a.Equals("--uninstall", StringComparison.OrdinalIgnoreCase) || a.Equals("/uninstall", StringComparison.OrdinalIgnoreCase)))
+            {
+                bool quiet = Array.Exists(args, a => a.Equals("--quiet", StringComparison.OrdinalIgnoreCase) || a.Equals("/quiet", StringComparison.OrdinalIgnoreCase));
+                PerformUninstall(quiet);
+                return;
+            }
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new SetupWizard());
