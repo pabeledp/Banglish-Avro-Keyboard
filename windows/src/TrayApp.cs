@@ -670,6 +670,14 @@ namespace Banglish
                     }
                 }
 
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                Application.ThreadException += (s, e) => {
+                    try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "thread_error.log"), e.Exception.ToString()); } catch {}
+                };
+                AppDomain.CurrentDomain.UnhandledException += (s, e) => {
+                    try { File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "domain_error.log"), e.ExceptionObject.ToString()); } catch {}
+                };
+
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new TrayApplication());
