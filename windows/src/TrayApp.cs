@@ -496,31 +496,52 @@ namespace Banglish
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 string exePath = Process.GetCurrentProcess().MainModule.FileName;
                 string icoPath = Path.Combine(baseDir, "app.ico");
-                if (!File.Exists(icoPath)) icoPath = exePath;
+                string displayIcon = File.Exists(icoPath) ? icoPath : (exePath + ",0");
 
                 string uninstallPath = Path.Combine(baseDir, "Banglish-Uninstall.exe");
                 string uninstallCmd = "\"" + (File.Exists(uninstallPath) ? uninstallPath : exePath) + "\" --uninstall";
                 string quietUninstallCmd = uninstallCmd + " --quiet";
 
-                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName))
+                Action<Microsoft.Win32.RegistryKey, string> writeEntry = (root, subKey) =>
                 {
-                    if (key != null)
+                    try
                     {
-                        key.SetValue("DisplayName", appName);
-                        key.SetValue("DisplayVersion", appVersion);
-                        key.SetValue("DisplayIcon", icoPath + ",0");
-                        key.SetValue("Publisher", "Team FramEmpire & A M Pabel");
-                        key.SetValue("InstallLocation", baseDir);
-                        key.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
-                        key.SetValue("EstimatedSize", 52400, Microsoft.Win32.RegistryValueKind.DWord);
-                        key.SetValue("UninstallString", uninstallCmd);
-                        key.SetValue("QuietUninstallString", quietUninstallCmd);
-                        key.SetValue("URLInfoAbout", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
-                        key.SetValue("HelpLink", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
-                        key.SetValue("NoModify", 1, Microsoft.Win32.RegistryValueKind.DWord);
-                        key.SetValue("NoRepair", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                        using (var key = root.CreateSubKey(subKey))
+                        {
+                            if (key != null)
+                            {
+                                key.SetValue("DisplayName", appName);
+                                key.SetValue("DisplayVersion", appVersion);
+                                key.SetValue("DisplayIcon", displayIcon);
+                                key.SetValue("Publisher", "Team FramEmpire & A M Pabel");
+                                key.SetValue("InstallLocation", baseDir);
+                                key.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
+                                key.SetValue("EstimatedSize", 52400, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("UninstallString", uninstallCmd);
+                                key.SetValue("QuietUninstallString", quietUninstallCmd);
+                                key.SetValue("URLInfoAbout", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
+                                key.SetValue("HelpLink", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
+                                key.SetValue("NoModify", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("NoRepair", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("VersionMajor", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("VersionMinor", isBeta ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("MajorVersion", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("MinorVersion", isBeta ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
+                            }
+                        }
                     }
+                    catch {}
+                };
+
+                writeEntry(Microsoft.Win32.Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName);
+                writeEntry(Microsoft.Win32.Registry.CurrentUser, @"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName);
+
+                try
+                {
+                    writeEntry(Microsoft.Win32.Registry.LocalMachine, @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName);
+                    writeEntry(Microsoft.Win32.Registry.LocalMachine, @"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName);
                 }
+                catch {}
             }
             catch {}
         }

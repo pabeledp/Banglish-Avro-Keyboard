@@ -54,6 +54,7 @@ namespace Banglish.Setup
 
         public SetupWizard()
         {
+            CloseRunningBanglishInstances();
             targetFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs\\Banglish");
             InitializeUI();
         }
@@ -541,14 +542,95 @@ namespace Banglish.Setup
             timer.Start();
         }
 
+        private static void CloseRunningBanglishInstances()
+        {
+            try
+            {
+                int currentPid = System.Diagnostics.Process.GetCurrentProcess().Id;
+                string[] procNames = new string[] { "Banglish", "Banglish-v1.0.1-beta", "Banglish-Beta" };
+                foreach (string name in procNames)
+                {
+                    foreach (var proc in System.Diagnostics.Process.GetProcessesByName(name))
+                    {
+                        if (proc.Id == currentPid) continue;
+                        try
+                        {
+                            proc.CloseMainWindow();
+                            if (!proc.WaitForExit(700))
+                            {
+                                proc.Kill();
+                                proc.WaitForExit(1000);
+                            }
+                        }
+                        catch {}
+                    }
+                }
+                System.Threading.Thread.Sleep(300);
+            }
+            catch {}
+        }
+
+        private static void SafeWriteFile(string targetPath, Action writeAction)
+        {
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    if (File.Exists(targetPath))
+                    {
+                        try { File.Delete(targetPath); } catch {}
+                    }
+                    writeAction();
+                    return;
+                }
+                catch (IOException)
+                {
+                    if (attempt == 0)
+                    {
+                        CloseRunningBanglishInstances();
+                        System.Threading.Thread.Sleep(300);
+                    }
+                    else if (attempt == 1)
+                    {
+                        try
+                        {
+                            string oldPath = targetPath + "." + DateTime.Now.Ticks + ".old";
+                            File.Move(targetPath, oldPath);
+                            writeAction();
+                            return;
+                        }
+                        catch {}
+                        System.Threading.Thread.Sleep(400);
+                    }
+                    else
+                    {
+                        throw;
+                    }
+                }
+            }
+        }
+
         private void PerformInstallFiles()
         {
             try
             {
+                // Ensure any running instances of Banglish are terminated so files are never locked
+                CloseRunningBanglishInstances();
+
                 if (!Directory.Exists(targetFolder))
                 {
                     Directory.CreateDirectory(targetFolder);
                 }
+
+                // Clean up any lingering temporary old files
+                try
+                {
+                    foreach (string oldFile in Directory.GetFiles(targetFolder, "*.old"))
+                    {
+                        try { File.Delete(oldFile); } catch {}
+                    }
+                }
+                catch {}
 
                 string sourceDir = AppDomain.CurrentDomain.BaseDirectory;
                 var asm = System.Reflection.Assembly.GetExecutingAssembly();
@@ -558,75 +640,43 @@ namespace Banglish.Setup
                 string srcExe = Path.Combine(sourceDir, "Banglish.exe");
                 string srcBetaExe = Path.Combine(sourceDir, "Banglish-v1.0.1-beta.exe");
 
-                if (File.Exists(srcExe) && !string.Equals(srcExe, dstExe, StringComparison.OrdinalIgnoreCase))
+                SafeWriteFile(dstExe, () =>
                 {
-                    File.Copy(srcExe, dstExe, true);
-                }
-                else if (File.Exists(srcBetaExe) && !string.Equals(srcBetaExe, dstExe, StringComparison.OrdinalIgnoreCase))
-                {
-                    File.Copy(srcBetaExe, dstExe, true);
-                }
-                else
-                {
-                    string exeResName = null;
-#if VOICE_BETA
-                    exeResName = "Banglish-v1.0.1-beta.exe";
-#else
-                    exeResName = "Banglish.exe";
-#endif
-                    if (asm.GetManifestResourceStream(exeResName) == null)
+                    if (File.Exists(srcExe) && !string.Equals(srcExe, dstExe, StringComparison.OrdinalIgnoreCase))
                     {
-                        foreach (string r in asm.GetManifestResourceNames())
-                        {
-                            if (r.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && !r.Contains("Setup"))
-                            {
-                                exeResName = r;
-                                break;
-                            }
-                        }
+                        File.Copy(srcExe, dstExe, true);
                     }
-
-                    if (!string.IsNullOrEmpty(exeResName))
+                    else if (File.Exists(srcBetaExe) && !string.Equals(srcBetaExe, dstExe, StringComparison.OrdinalIgnoreCase))
                     {
-                        using (Stream s = asm.GetManifestResourceStream(exeResName))
+                        File.Copy(srcBetaExe, dstExe, true);
+                    }
+                    else
+                    {
+                        string exeResName = null;
+#if VOICE_BETA
+                        exeResName = "Banglish-v1.0.1-beta.exe";
+#else
+                        exeResName = "Banglish.exe";
+#endif
+                        if (asm.GetManifestResourceStream(exeResName) == null)
                         {
-                            if (s != null)
+                            foreach (string r in asm.GetManifestResourceNames())
                             {
-                                using (FileStream fs = new FileStream(dstExe, FileMode.Create, FileAccess.Write))
+                                if (r.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && !r.Contains("Setup"))
                                 {
-                                    s.CopyTo(fs);
+                                    exeResName = r;
+                                    break;
                                 }
                             }
                         }
-                    }
-                }
 
-                // 2. words.txt (handles plain and words.txt.gz decompression)
-                string dstWords = Path.Combine(targetFolder, "words.txt");
-                string srcWords = Path.Combine(sourceDir, "words.txt");
-                if (File.Exists(srcWords) && !string.Equals(srcWords, dstWords, StringComparison.OrdinalIgnoreCase))
-                {
-                    File.Copy(srcWords, dstWords, true);
-                }
-                else
-                {
-                    using (Stream gz = asm.GetManifestResourceStream("words.txt.gz"))
-                    {
-                        if (gz != null)
+                        if (!string.IsNullOrEmpty(exeResName))
                         {
-                            using (var decompressor = new System.IO.Compression.GZipStream(gz, System.IO.Compression.CompressionMode.Decompress))
-                            using (FileStream fs = new FileStream(dstWords, FileMode.Create, FileAccess.Write))
-                            {
-                                decompressor.CopyTo(fs);
-                            }
-                        }
-                        else
-                        {
-                            using (Stream s = asm.GetManifestResourceStream("words.txt"))
+                            using (Stream s = asm.GetManifestResourceStream(exeResName))
                             {
                                 if (s != null)
                                 {
-                                    using (FileStream fs = new FileStream(dstWords, FileMode.Create, FileAccess.Write))
+                                    using (FileStream fs = new FileStream(dstExe, FileMode.Create, FileAccess.Write, FileShare.None))
                                     {
                                         s.CopyTo(fs);
                                     }
@@ -634,70 +684,117 @@ namespace Banglish.Setup
                             }
                         }
                     }
-                }
+                });
+
+                // 2. words.txt (handles plain and words.txt.gz decompression)
+                string dstWords = Path.Combine(targetFolder, "words.txt");
+                string srcWords = Path.Combine(sourceDir, "words.txt");
+                SafeWriteFile(dstWords, () =>
+                {
+                    if (File.Exists(srcWords) && !string.Equals(srcWords, dstWords, StringComparison.OrdinalIgnoreCase))
+                    {
+                        File.Copy(srcWords, dstWords, true);
+                    }
+                    else
+                    {
+                        using (Stream gz = asm.GetManifestResourceStream("words.txt.gz"))
+                        {
+                            if (gz != null)
+                            {
+                                using (var decompressor = new System.IO.Compression.GZipStream(gz, System.IO.Compression.CompressionMode.Decompress))
+                                using (FileStream fs = new FileStream(dstWords, FileMode.Create, FileAccess.Write))
+                                {
+                                    decompressor.CopyTo(fs);
+                                }
+                            }
+                            else
+                            {
+                                using (Stream s = asm.GetManifestResourceStream("words.txt"))
+                                {
+                                    if (s != null)
+                                    {
+                                        using (FileStream fs = new FileStream(dstWords, FileMode.Create, FileAccess.Write))
+                                        {
+                                            s.CopyTo(fs);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
 
                 // 3. autodict.txt
                 string dstAuto = Path.Combine(targetFolder, "autodict.txt");
                 string srcAuto = Path.Combine(sourceDir, "autodict.txt");
-                if (File.Exists(srcAuto) && !string.Equals(srcAuto, dstAuto, StringComparison.OrdinalIgnoreCase))
+                SafeWriteFile(dstAuto, () =>
                 {
-                    File.Copy(srcAuto, dstAuto, true);
-                }
-                else
-                {
-                    using (Stream s = asm.GetManifestResourceStream("autodict.txt"))
+                    if (File.Exists(srcAuto) && !string.Equals(srcAuto, dstAuto, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (s != null)
+                        File.Copy(srcAuto, dstAuto, true);
+                    }
+                    else
+                    {
+                        using (Stream s = asm.GetManifestResourceStream("autodict.txt"))
                         {
-                            using (FileStream fs = new FileStream(dstAuto, FileMode.Create, FileAccess.Write))
+                            if (s != null)
                             {
-                                s.CopyTo(fs);
+                                using (FileStream fs = new FileStream(dstAuto, FileMode.Create, FileAccess.Write))
+                                {
+                                    s.CopyTo(fs);
+                                }
                             }
                         }
                     }
-                }
+                });
 
                 // 4. Banglish-Logo.png
                 string dstLogo = Path.Combine(targetFolder, "Banglish-Logo.png");
                 string srcLogo = Path.Combine(sourceDir, "Banglish-Logo.png");
-                if (File.Exists(srcLogo) && !string.Equals(srcLogo, dstLogo, StringComparison.OrdinalIgnoreCase))
+                SafeWriteFile(dstLogo, () =>
                 {
-                    File.Copy(srcLogo, dstLogo, true);
-                }
-                else
-                {
-                    using (Stream s = asm.GetManifestResourceStream("Banglish-Logo.png"))
+                    if (File.Exists(srcLogo) && !string.Equals(srcLogo, dstLogo, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (s != null)
+                        File.Copy(srcLogo, dstLogo, true);
+                    }
+                    else
+                    {
+                        using (Stream s = asm.GetManifestResourceStream("Banglish-Logo.png"))
                         {
-                            using (FileStream fs = new FileStream(dstLogo, FileMode.Create, FileAccess.Write))
+                            if (s != null)
                             {
-                                s.CopyTo(fs);
+                                using (FileStream fs = new FileStream(dstLogo, FileMode.Create, FileAccess.Write))
+                                {
+                                    s.CopyTo(fs);
+                                }
                             }
                         }
                     }
-                }
+                });
 
                 // 5. app.ico
                 string dstIco = Path.Combine(targetFolder, "app.ico");
                 string srcIco = Path.Combine(sourceDir, "app.ico");
-                if (File.Exists(srcIco) && !string.Equals(srcIco, dstIco, StringComparison.OrdinalIgnoreCase))
+                SafeWriteFile(dstIco, () =>
                 {
-                    File.Copy(srcIco, dstIco, true);
-                }
-                else
-                {
-                    using (Stream s = asm.GetManifestResourceStream("app.ico"))
+                    if (File.Exists(srcIco) && !string.Equals(srcIco, dstIco, StringComparison.OrdinalIgnoreCase))
                     {
-                        if (s != null)
+                        File.Copy(srcIco, dstIco, true);
+                    }
+                    else
+                    {
+                        using (Stream s = asm.GetManifestResourceStream("app.ico"))
                         {
-                            using (FileStream fs = new FileStream(dstIco, FileMode.Create, FileAccess.Write))
+                            if (s != null)
                             {
-                                s.CopyTo(fs);
+                                using (FileStream fs = new FileStream(dstIco, FileMode.Create, FileAccess.Write))
+                                {
+                                    s.CopyTo(fs);
+                                }
                             }
                         }
                     }
-                }
+                });
 
                 string installedExe = Path.Combine(targetFolder, "Banglish.exe");
                 if (!File.Exists(installedExe))
@@ -712,7 +809,10 @@ namespace Banglish.Setup
                     string currentSetup = Application.ExecutablePath;
                     if (File.Exists(currentSetup) && !string.Equals(currentSetup, uninstallerPath, StringComparison.OrdinalIgnoreCase))
                     {
-                        File.Copy(currentSetup, uninstallerPath, true);
+                        SafeWriteFile(uninstallerPath, () =>
+                        {
+                            File.Copy(currentSetup, uninstallerPath, true);
+                        });
                     }
                 }
                 catch {}
@@ -783,31 +883,52 @@ namespace Banglish.Setup
                 string appVersion = isBeta ? "1.0.1-beta" : "1.0.0";
                 string regKeyName = isBeta ? "Banglish-Beta" : "Banglish";
                 string icoPath = Path.Combine(targetFolder, "app.ico");
-                if (!File.Exists(icoPath)) icoPath = installedExe;
+                string displayIcon = File.Exists(icoPath) ? icoPath : (installedExe + ",0");
 
                 string uninstallExeToRun = File.Exists(uninstallerPath) ? uninstallerPath : installedExe;
                 string uninstallCmd = "\"" + uninstallExeToRun + "\" --uninstall";
                 string quietUninstallCmd = uninstallCmd + " --quiet";
 
-                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName))
+                Action<Microsoft.Win32.RegistryKey, string> writeEntry = (root, subKey) =>
                 {
-                    if (key != null)
+                    try
                     {
-                        key.SetValue("DisplayName", appName);
-                        key.SetValue("DisplayVersion", appVersion);
-                        key.SetValue("DisplayIcon", icoPath + ",0");
-                        key.SetValue("Publisher", "Team FramEmpire & A M Pabel");
-                        key.SetValue("InstallLocation", targetFolder);
-                        key.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
-                        key.SetValue("EstimatedSize", 52400, Microsoft.Win32.RegistryValueKind.DWord);
-                        key.SetValue("UninstallString", uninstallCmd);
-                        key.SetValue("QuietUninstallString", quietUninstallCmd);
-                        key.SetValue("URLInfoAbout", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
-                        key.SetValue("HelpLink", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
-                        key.SetValue("NoModify", 1, Microsoft.Win32.RegistryValueKind.DWord);
-                        key.SetValue("NoRepair", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                        using (var key = root.CreateSubKey(subKey))
+                        {
+                            if (key != null)
+                            {
+                                key.SetValue("DisplayName", appName);
+                                key.SetValue("DisplayVersion", appVersion);
+                                key.SetValue("DisplayIcon", displayIcon);
+                                key.SetValue("Publisher", "Team FramEmpire & A M Pabel");
+                                key.SetValue("InstallLocation", targetFolder);
+                                key.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
+                                key.SetValue("EstimatedSize", 52400, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("UninstallString", uninstallCmd);
+                                key.SetValue("QuietUninstallString", quietUninstallCmd);
+                                key.SetValue("URLInfoAbout", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
+                                key.SetValue("HelpLink", "https://github.com/pabeledp/Banglish-Avro-Keyboard");
+                                key.SetValue("NoModify", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("NoRepair", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("VersionMajor", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("VersionMinor", isBeta ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("MajorVersion", 1, Microsoft.Win32.RegistryValueKind.DWord);
+                                key.SetValue("MinorVersion", isBeta ? 1 : 0, Microsoft.Win32.RegistryValueKind.DWord);
+                            }
+                        }
                     }
+                    catch {}
+                };
+
+                writeEntry(Microsoft.Win32.Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName);
+                writeEntry(Microsoft.Win32.Registry.CurrentUser, @"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName);
+
+                try
+                {
+                    writeEntry(Microsoft.Win32.Registry.LocalMachine, @"Software\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName);
+                    writeEntry(Microsoft.Win32.Registry.LocalMachine, @"Software\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\" + regKeyName);
                 }
+                catch {}
             }
             catch {}
         }
