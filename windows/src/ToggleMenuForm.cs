@@ -385,7 +385,7 @@ namespace Banglish.UI
                 }
             }
 
-            Rectangle closeRect = new Rectangle(this.Width - 28, 10, 18, 18);
+            Rectangle closeRect = new Rectangle(this.Width - 32, 8, 24, 24);
             _closeHovered = closeRect.Contains(e.Location);
 
             if (_hoveredIndex != oldHovered || _closeHovered != oldClose)
@@ -399,7 +399,7 @@ namespace Banglish.UI
         {
             if (e.Button == MouseButtons.Left)
             {
-                Rectangle closeRect = new Rectangle(this.Width - 28, 10, 18, 18);
+                Rectangle closeRect = new Rectangle(this.Width - 32, 8, 24, 24);
                 if (closeRect.Contains(e.Location))
                 {
                     HideMenu();
@@ -465,9 +465,19 @@ namespace Banglish.UI
             }
 
             // Close '✕' Button
-            using (var closeBrush = new SolidBrush(_closeHovered ? Color.FromArgb(248, 113, 113) : Color.FromArgb(148, 163, 184)))
+            Rectangle closePillRect = new Rectangle(this.Width - 32, 8, 24, 24);
+            if (_closeHovered)
             {
-                g.DrawString("✕", fontTitle, closeBrush, this.Width - 26, 10);
+                using (var hBrush = new SolidBrush(Color.FromArgb(50, 239, 68, 68)))
+                using (var hPath = GetRoundedRectPath(closePillRect, 6))
+                {
+                    g.FillPath(hBrush, hPath);
+                }
+            }
+            using (var closeBrush = new SolidBrush(_closeHovered ? Color.FromArgb(248, 113, 113) : Color.FromArgb(148, 163, 184)))
+            using (var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
+                g.DrawString("✕", fontTitle, closeBrush, closePillRect, sf);
             }
 
             // Header Separator

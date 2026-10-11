@@ -33,11 +33,10 @@ namespace Banglish.UI
         private bool _isBangla = true;
         private Image _logoImg;
 
-        private Point _mouseDownScreenPos;
-        private Point _formStartPos;
-        private bool _hasDragged = false;
         private bool _isHovered = false;
+#if VOICE_BETA
         private bool _isMicHovered = false;
+#endif
         private bool _userClosed = false;
 
         private ToggleMenuForm _customMenu;
@@ -70,7 +69,7 @@ namespace Banglish.UI
             // Custom UI right-click menu card
             _customMenu = new ToggleMenuForm(_hook, this);
 
-            // Heartbeat timer to guarantee toggle button never disappears or gets hidden by taskbar
+            // Heartbeat timer to guarantee toggle button stays permanently locked at bottom right
             _keepAliveTimer = new System.Windows.Forms.Timer();
             _keepAliveTimer.Interval = 2500;
             _keepAliveTimer.Tick += (s, e) =>
@@ -79,7 +78,7 @@ namespace Banglish.UI
                 {
                     this.Show();
                 }
-                SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                SetDefaultPosition();
             };
             _keepAliveTimer.Start();
         }
@@ -135,7 +134,14 @@ namespace Banglish.UI
             this.MouseMove += ToggleBarForm_MouseMove;
             this.MouseUp += ToggleBarForm_MouseUp;
             this.MouseEnter += (s, e) => { _isHovered = true; this.Invalidate(); };
-            this.MouseLeave += (s, e) => { _isHovered = false; _isMicHovered = false; this.Invalidate(); };
+            this.MouseLeave += (s, e) =>
+            {
+                _isHovered = false;
+#if VOICE_BETA
+                _isMicHovered = false;
+#endif
+                this.Invalidate();
+            };
 
             UpdateRegion();
         }
@@ -196,12 +202,7 @@ namespace Banglish.UI
 
         private void ToggleBarForm_MouseDown(object sender, MouseEventArgs e)
         {
-            if (e.Button == MouseButtons.Left)
-            {
-                _mouseDownScreenPos = Cursor.Position;
-                _formStartPos = this.Location;
-                _hasDragged = false;
-            }
+            // Position is locked - dragging disabled
         }
 
         private void ToggleBarForm_MouseMove(object sender, MouseEventArgs e)
@@ -214,54 +215,35 @@ namespace Banglish.UI
                 this.Invalidate();
             }
 #endif
-
-            if (e.Button == MouseButtons.Left)
-            {
-                Point cur = Cursor.Position;
-                int dx = Math.Abs(cur.X - _mouseDownScreenPos.X);
-                int dy = Math.Abs(cur.Y - _mouseDownScreenPos.Y);
-                if (dx > 8 || dy > 8)
-                {
-                    _hasDragged = true;
-                    this.Location = new Point(_formStartPos.X + (cur.X - _mouseDownScreenPos.X),
-                                              _formStartPos.Y + (cur.Y - _mouseDownScreenPos.Y));
-                }
-            }
         }
 
         private void ToggleBarForm_MouseUp(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Right)
             {
-                if (!_hasDragged && _customMenu != null)
+                if (_customMenu != null)
                 {
                     _customMenu.ShowMenuAbove(this);
                 }
-                _hasDragged = false;
                 return;
             }
 
             if (e.Button == MouseButtons.Left)
             {
-                if (!_hasDragged)
-                {
 #if VOICE_BETA
-                    // Check if clicked the Microphone button (X: 74 to 98)
-                    if (e.X >= 74 && e.X <= 98)
-                    {
-                        VoiceTypingManager.Shared.ToggleVoiceTyping();
-                        this.Invalidate();
-                        _hasDragged = false;
-                        return;
-                    }
-#endif
-                    // Toggle language mode
-                    if (_hook != null)
-                    {
-                        _hook.ToggleMode();
-                    }
+                // Check if clicked the Microphone button (X: 74 to 98)
+                if (e.X >= 74 && e.X <= 98)
+                {
+                    VoiceTypingManager.Shared.ToggleVoiceTyping();
+                    this.Invalidate();
+                    return;
                 }
-                _hasDragged = false;
+#endif
+                // Toggle language mode
+                if (_hook != null)
+                {
+                    _hook.ToggleMode();
+                }
             }
         }
 

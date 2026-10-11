@@ -348,95 +348,115 @@ namespace Banglish.Core
 
         public static void ReplaceComposedText(int backspaceCount, string newText)
         {
-            int totalInputs = (backspaceCount * 2) + (newText.Length * 2);
-            if (totalInputs == 0) return;
+            if (backspaceCount == 0 && string.IsNullOrEmpty(newText)) return;
 
-            INPUT[] inputs = new INPUT[totalInputs];
-            int idx = 0;
-
-            // 1. Send Backspaces
-            for (int i = 0; i < backspaceCount; i++)
+            // 1. Send Backspaces first with proper hardware scan code (0x0E)
+            if (backspaceCount > 0)
             {
-                inputs[idx++] = new INPUT
+                INPUT[] bsInputs = new INPUT[backspaceCount * 2];
+                int bsIdx = 0;
+
+                for (int i = 0; i < backspaceCount; i++)
                 {
-                    type = 1,
-                    U = new InputUnion
+                    bsInputs[bsIdx++] = new INPUT
                     {
-                        ki = new KEYBDINPUT
+                        type = 1,
+                        U = new InputUnion
                         {
-                            wVk = 0x08, // VK_BACK
-                            wScan = 0,
-                            dwFlags = 0,
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
+                            ki = new KEYBDINPUT
+                            {
+                                wVk = 0x08, // VK_BACK
+                                wScan = 0x0E, // Hardware scan code for Backspace
+                                dwFlags = 0,
+                                time = 0,
+                                dwExtraInfo = MAGIC_COOKIE
+                            }
                         }
-                    }
-                };
-                inputs[idx++] = new INPUT
+                    };
+                    bsInputs[bsIdx++] = new INPUT
+                    {
+                        type = 1,
+                        U = new InputUnion
+                        {
+                            ki = new KEYBDINPUT
+                            {
+                                wVk = 0x08, // VK_BACK
+                                wScan = 0x0E,
+                                dwFlags = 0x0002, // KEYEVENTF_KEYUP
+                                time = 0,
+                                dwExtraInfo = MAGIC_COOKIE
+                            }
+                        }
+                    };
+                }
+
+                uint bsSent = SendInput((uint)bsInputs.Length, bsInputs, Marshal.SizeOf(typeof(INPUT)));
+                if (bsSent == 0)
                 {
-                    type = 1,
-                    U = new InputUnion
+                    for (int i = 0; i < backspaceCount; i++)
                     {
-                        ki = new KEYBDINPUT
-                        {
-                            wVk = 0x08, // VK_BACK
-                            wScan = 0,
-                            dwFlags = 0x0002, // KEYEVENTF_KEYUP
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
-                        }
+                        keybd_event(0x08, 0x0E, 0, MAGIC_COOKIE);
+                        keybd_event(0x08, 0x0E, 2, MAGIC_COOKIE);
                     }
-                };
+                }
+
+                // Micro yield (2ms) guarantees active application (Notepad, Word, browsers, etc.)
+                // completes deleting previous characters before new replacement characters arrive!
+                if (!string.IsNullOrEmpty(newText))
+                {
+                    System.Threading.Thread.Sleep(2);
+                }
             }
 
             // 2. Send New Transliterated Unicode Characters
-            for (int i = 0; i < newText.Length; i++)
+            if (!string.IsNullOrEmpty(newText))
             {
-                char c = newText[i];
-                inputs[idx++] = new INPUT
-                {
-                    type = 1,
-                    U = new InputUnion
-                    {
-                        ki = new KEYBDINPUT
-                        {
-                            wVk = 0,
-                            wScan = (ushort)c,
-                            dwFlags = 0x0004, // KEYEVENTF_UNICODE
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
-                        }
-                    }
-                };
-                inputs[idx++] = new INPUT
-                {
-                    type = 1,
-                    U = new InputUnion
-                    {
-                        ki = new KEYBDINPUT
-                        {
-                            wVk = 0,
-                            wScan = (ushort)c,
-                            dwFlags = 0x0004 | 0x0002, // KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
-                        }
-                    }
-                };
-            }
+                INPUT[] textInputs = new INPUT[newText.Length * 2];
+                int tIdx = 0;
 
-            uint sent = SendInput((uint)totalInputs, inputs, Marshal.SizeOf(typeof(INPUT)));
-            if (sent == 0)
-            {
-                for (int i = 0; i < backspaceCount; i++)
+                for (int i = 0; i < newText.Length; i++)
                 {
-                    keybd_event(0x08, 0, 0, MAGIC_COOKIE);
-                    keybd_event(0x08, 0, 2, MAGIC_COOKIE);
+                    char c = newText[i];
+                    textInputs[tIdx++] = new INPUT
+                    {
+                        type = 1,
+                        U = new InputUnion
+                        {
+                            ki = new KEYBDINPUT
+                            {
+                                wVk = 0,
+                                wScan = (ushort)c,
+                                dwFlags = 0x0004, // KEYEVENTF_UNICODE
+                                time = 0,
+                                dwExtraInfo = MAGIC_COOKIE
+                            }
+                        }
+                    };
+                    textInputs[tIdx++] = new INPUT
+                    {
+                        type = 1,
+                        U = new InputUnion
+                        {
+                            ki = new KEYBDINPUT
+                            {
+                                wVk = 0,
+                                wScan = (ushort)c,
+                                dwFlags = 0x0004 | 0x0002, // KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
+                                time = 0,
+                                dwExtraInfo = MAGIC_COOKIE
+                            }
+                        }
+                    };
                 }
-                foreach (char c in newText)
+
+                uint tSent = SendInput((uint)textInputs.Length, textInputs, Marshal.SizeOf(typeof(INPUT)));
+                if (tSent == 0)
                 {
-                    keybd_event(0, (byte)c, 0x0004, MAGIC_COOKIE);
-                    keybd_event(0, (byte)c, 0x0004 | 0x0002, MAGIC_COOKIE);
+                    foreach (char c in newText)
+                    {
+                        keybd_event(0, (byte)c, 0x0004, MAGIC_COOKIE);
+                        keybd_event(0, (byte)c, 0x0004 | 0x0002, MAGIC_COOKIE);
+                    }
                 }
             }
         }
