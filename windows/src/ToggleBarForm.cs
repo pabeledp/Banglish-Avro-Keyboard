@@ -24,6 +24,24 @@ namespace Banglish.UI
         [DllImport("user32.dll")]
         private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr childAfter, string className, string windowName);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
         private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
         private const uint SWP_NOMOVE = 0x0002;
         private const uint SWP_NOSIZE = 0x0001;
@@ -174,18 +192,65 @@ namespace Banglish.UI
 
         public void SetDefaultPosition()
         {
-            Rectangle wa = Screen.PrimaryScreen.WorkingArea;
+            try
+            {
+                Screen screen = Screen.PrimaryScreen;
+                Rectangle bounds = screen.Bounds;
+                Rectangle wa = screen.WorkingArea;
 
-            // Float cleanly 6 pixels ABOVE the taskbar in the bottom-right corner
-            // This ensures the Windows 11 taskbar NEVER occludes or redraws over the widget!
-            int x = wa.Right - this.Width - 16;
-            int y = wa.Bottom - this.Height - 6;
+                int taskbarTop = wa.Bottom;
+                int taskbarHeight = bounds.Bottom - wa.Bottom;
+                if (taskbarHeight <= 10)
+                {
+                    taskbarHeight = 48;
+                    taskbarTop = bounds.Bottom - 48;
+                }
 
-            if (x < 0) x = 16;
-            if (y < 0) y = 16;
+                int targetX = -1;
+                int targetY = taskbarTop + (taskbarHeight - this.Height) / 2;
 
-            this.Location = new Point(x, y);
-            SetWindowPos(this.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                // Try to find the actual Windows Taskbar and its TrayNotifyWnd (System Tray / Clock area)
+                try
+                {
+                    IntPtr tbHwnd = FindWindow("Shell_TrayWnd", null);
+                    if (tbHwnd != IntPtr.Zero)
+                    {
+                        RECT tbRect;
+                        if (GetWindowRect(tbHwnd, out tbRect) && (tbRect.Bottom - tbRect.Top) > 10)
+                        {
+                            taskbarTop = tbRect.Top;
+                            taskbarHeight = tbRect.Bottom - tbRect.Top;
+                            targetY = taskbarTop + (taskbarHeight - this.Height) / 2;
+
+                            IntPtr trayHwnd = FindWindowEx(tbHwnd, IntPtr.Zero, "TrayNotifyWnd", null);
+                            if (trayHwnd != IntPtr.Zero)
+                            {
+                                RECT trRect;
+                                if (GetWindowRect(trayHwnd, out trRect) && trRect.Left > 100)
+                                {
+                                    // Place immediately before (to the left of) the time/tray bar
+                                    targetX = trRect.Left - this.Width - 10;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch {}
+
+                // Fallback: In Windows 10/11, the time + system icons cluster is roughly 240px-280px wide from the right
+                if (targetX < 0)
+                {
+                    int trayClusterWidth = 260;
+                    targetX = bounds.Right - trayClusterWidth - this.Width - 10;
+                }
+
+                if (targetX < 10) targetX = 10;
+                if (targetY < 0) targetY = bounds.Bottom - this.Height - 6;
+
+                this.Location = new Point(targetX, targetY);
+                SetWindowPos(this.Handle, HWND_TOPMOST, targetX, targetY, this.Width, this.Height, SWP_NOACTIVATE);
+            }
+            catch {}
         }
 
         public void SetMode(bool isBangla)
