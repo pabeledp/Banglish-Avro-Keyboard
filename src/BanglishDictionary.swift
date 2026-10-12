@@ -26,7 +26,14 @@ public final class BanglishDictionary {
         "ডিভাইস", "আপডেট", "কিবোর্ড", "সাজেশন", "প্লেসমেন্ট", "করব", "করবে", "করো",
         "হবে", "সময়", "সবার", "কিছু", "সবচেয়ে", "লেখা", "শব্দ", "নতুন", "সব",
         "কাজ", "ঠিক", "আসছে", "আসছিল", "হচ্ছে", "হচ্ছিল", "কিন্তু", "কথা", "কোথায়",
-        "কোথাও", "বাইরে", "ভেতরে", "ভিতরে", "এখন", "আগে", "পরে", "দূরত্ব", "নিরাপদ"
+        "কোথাও", "বাইরে", "ভেতরে", "ভিতরে", "এখন", "আগে", "পরে", "দূরত্ব", "নিরাপদ",
+        "হওয়া", "হওয়ার", "হওয়াতে", "হওয়ায়", "খাওয়া", "খাওয়ার", "দেওয়া", "দেওয়ার",
+        "যাওয়া", "যাওয়ার", "পাওয়া", "পাওয়ার", "নেওয়া", "নেওয়ার", "চাওয়া", "চাওয়ার",
+        "ধোয়া", "ধোওয়া", "শোওয়া", "শোয়া",
+        "এমন", "এমনি", "এমনই", "যেমন", "যেমনি", "যেমনই", "তেমন", "তেমনি", "তেমনই", "কেমন", "কেমনি", "কেমনই",
+        "আস্তে", "আসতে", "তখন", "তখনই", "তখনি", "এখনই", "এখনি",
+        "চোখ", "চোখে", "চোখের", "লোক", "লোকে", "লোকের", "রোগ", "রোগে", "রোগের", "রোগী",
+        "বলো", "ছোট", "বড়ো", "বড়", "শোনো", "দরজা", "খবর", "পাঁচ"
     ]
 
     // Fast built-in autocorrect seed mappings
@@ -219,10 +226,13 @@ public final class BanglishDictionary {
         preferred = autodict[lower]
         lock.unlock()
 
-        let primary = BanglishEngine.shared.transliterate(rawInput)
+        var primary = BanglishEngine.shared.transliterate(rawInput)
         guard !primary.isEmpty else {
             if let pref = preferred { return [pref, rawInput] }
             return [rawInput]
+        }
+        if primary.contains("ওা") {
+            primary = primary.replacingOccurrences(of: "ওা", with: "ওয়া")
         }
 
         var result: [String] = []
@@ -360,15 +370,66 @@ public final class BanglishDictionary {
             }
         }
 
-        // Rule O: Inherent vowel vs o-kar ambiguity (e.g. khoj -> খোজ, chok -> চোখ)
-        if rawInput.contains("o") && !primary.contains("ো") {
-            let withO = rawInput.replacingOccurrences(of: "o", with: "O")
-            let transO = BanglishEngine.shared.transliterate(withO)
-            if !transO.isEmpty {
-                variants.insert(transO)
-                if Self.hasScalar(transO, 0x099B) { variants.insert(Self.replaceScalar(transO, from: 0x099B, to: 0x099A)) }
-                if Self.hasScalar(transO, 0x099A) { variants.insert(Self.replaceScalar(transO, from: 0x099A, to: 0x099B)) }
+        // Rule O: o-kar ambiguity (chok -> চোখ, lok -> লোক, rog -> রোগ, koro -> করো, bolo -> বলো, choto -> ছোট, boro -> বড়/বড়ো, kothao -> কোথাও)
+        if rawInput.contains("o") {
+            let allO = BanglishEngine.shared.transliterate(rawInput.replacingOccurrences(of: "o", with: "O"))
+            if !allO.isEmpty { variants.insert(allO) }
+
+            if let lastO = rawInput.lastIndex(of: "o") {
+                var lastOStr = rawInput
+                lastOStr.replaceSubrange(lastO...lastO, with: "O")
+                let transLastO = BanglishEngine.shared.transliterate(lastOStr)
+                if !transLastO.isEmpty { variants.insert(transLastO) }
             }
+
+            if let firstO = rawInput.firstIndex(of: "o") {
+                var firstOStr = rawInput
+                firstOStr.replaceSubrange(firstO...firstO, with: "O")
+                let transFirstO = BanglishEngine.shared.transliterate(firstOStr)
+                if !transFirstO.isEmpty { variants.insert(transFirstO) }
+            }
+        }
+
+        // Rule W: wa / wya / oa -> ওয়া normalization (howa/howya -> হওয়া, khawa -> খাওয়া, dewa -> দেওয়া, jawa -> যাওয়া, pawa -> পাওয়া)
+        let curW = Array(variants) + [primary]
+        for w in curW {
+            if w.contains("ওা") { variants.insert(w.replacingOccurrences(of: "ওা", with: "ওয়া")) }
+        }
+
+        // Rule MN: Consonant shorthand expansion (emn -> এমন/এম্ন, kmn -> কেমন/কম্ন, tmn -> তেমন/তম্ন, jmn -> যেমন/জম্ন, amn -> এমন/আমন)
+        let curMN = Array(variants) + [primary]
+        for w in curMN {
+            if w.contains("ম্ন") { variants.insert(w.replacingOccurrences(of: "ম্ন", with: "মন")) }
+        }
+        if rawInput.lowercased().hasSuffix("mn") {
+            let baseStem = String(rawInput.dropLast(2))
+            let withO = BanglishEngine.shared.transliterate(baseStem + "on")
+            if !withO.isEmpty { variants.insert(withO) }
+            let withMon = BanglishEngine.shared.transliterate(baseStem + "mon")
+            if !withMon.isEmpty { variants.insert(withMon) }
+
+            if baseStem.count == 1 {
+                let withE = BanglishEngine.shared.transliterate(baseStem + "emon")
+                if !withE.isEmpty { variants.insert(withE) }
+            }
+        }
+
+        // Rule ST: Conjunct vs Non-conjunct (aste -> আস্তে & আসতে, boste -> বস্তে & বসতে, haste -> হস্তে & হাসতে)
+        let curST = Array(variants) + [primary]
+        for w in curST {
+            if w.contains("স্ত") { variants.insert(w.replacingOccurrences(of: "স্ত", with: "সত")) }
+        }
+        if rawInput.contains("ste") {
+            let modST = rawInput.replacingOccurrences(of: "ste", with: "s`te")
+            let transST = BanglishEngine.shared.transliterate(modST)
+            if !transST.isEmpty { variants.insert(transST) }
+        }
+
+        // Rule NI: Emphatic suffix ni <-> noi (jemoni -> যেমনই & যেমনি, temoni -> তেমনই & তেমনি, emoni -> এমনই & এমনি, kemoni -> কেমনই & কেমনি)
+        let curNI = Array(variants) + [primary]
+        for w in curNI {
+            if w.hasSuffix("নি") { variants.insert(String(w.dropLast(1)) + "নই") }
+            if w.hasSuffix("নই") { variants.insert(String(w.dropLast(2)) + "নি") }
         }
 
         // Rule H: ং <-> ঙ
@@ -549,45 +610,11 @@ public final class BanglishDictionary {
         ]
 
         let cbBaseWords = Array(variants) + [primary]
-
         for w in cbBaseWords {
-            // 1. Insert ঁ after vowel signs or independent vowels (single-site substitution)
-            let scalars = Array(w.unicodeScalars)
-            for (i, sc) in scalars.enumerated() {
-                if vowelSigns.contains(sc.value) || independentVowels.contains(sc.value) {
-                    if i + 1 < scalars.count && scalars[i + 1].value == 0x0981 { continue }
-                    var newScalars = scalars
-                    newScalars.insert(UnicodeScalar(0x0981)!, at: i + 1)
-                    let candidate = String(String.UnicodeScalarView(newScalars))
-                    variants.insert(candidate)
-                }
-            }
-
-            // 2. Nasal conjuncts to Chandrabindu
+            // Nasal conjuncts to Chandrabindu (e.g. chad -> চাঁদ, has -> হাঁস, badha -> বাঁধা)
             for (from, to) in nasalReplacements {
                 if w.contains(from) {
                     variants.insert(w.replacingOccurrences(of: from, with: to))
-                }
-            }
-        }
-
-        // 3. Raw phonetic input variations for Chandrabindu
-        if !rawInput.contains("^") {
-            let rawChars = Array(rawInput)
-            for (i, ch) in rawChars.enumerated() {
-                if "aeiouAEIOU".contains(ch) {
-                    var newChars = rawChars
-                    newChars.insert("^", at: i + 1)
-                    let transliteratedCB = BanglishEngine.shared.transliterate(String(newChars))
-                    if !transliteratedCB.isEmpty {
-                        variants.insert(transliteratedCB)
-                        if Self.hasScalar(transliteratedCB, 0x099B) {
-                            variants.insert(Self.replaceScalar(transliteratedCB, from: 0x099B, to: 0x099A))
-                        }
-                        if Self.hasScalar(transliteratedCB, 0x099A) {
-                            variants.insert(Self.replaceScalar(transliteratedCB, from: 0x099A, to: 0x099B))
-                        }
-                    }
                 }
             }
         }
@@ -618,27 +645,27 @@ public final class BanglishDictionary {
 
         let primaryConfirmed = self.contains(primary)
 
+        let userExplicitCB = rawInput.contains("^")
+
         if primaryConfirmed {
             // Primary transliteration is an authenticated dictionary word (highest accuracy)
             addCandidate(primary)
 
-            for v in cbConfirmed {
-                if result.count >= 8 { break }
-                addCandidate(v)
-            }
-            for v in otherConfirmed {
-                if result.count >= 8 { break }
-                addCandidate(v)
+            if userExplicitCB {
+                for v in cbConfirmed { if result.count >= 8 { break }; addCandidate(v) }
+                for v in otherConfirmed { if result.count >= 8 { break }; addCandidate(v) }
+            } else {
+                for v in otherConfirmed { if result.count >= 8 { break }; addCandidate(v) }
+                for v in cbConfirmed { if result.count >= 8 { break }; addCandidate(v) }
             }
         } else {
             // Primary is unconfirmed, prioritize verified accurate dictionary spellings
-            for v in cbConfirmed {
-                if result.count >= 8 { break }
-                addCandidate(v)
-            }
-            for v in otherConfirmed {
-                if result.count >= 8 { break }
-                addCandidate(v)
+            if userExplicitCB {
+                for v in cbConfirmed { if result.count >= 8 { break }; addCandidate(v) }
+                for v in otherConfirmed { if result.count >= 8 { break }; addCandidate(v) }
+            } else {
+                for v in otherConfirmed { if result.count >= 8 { break }; addCandidate(v) }
+                for v in cbConfirmed { if result.count >= 8 { break }; addCandidate(v) }
             }
             // Add unconfirmed primary transliteration as fallback
             addCandidate(primary)

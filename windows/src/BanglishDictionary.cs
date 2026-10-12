@@ -28,7 +28,14 @@ namespace Banglish.Core
             "হবে", "সময়", "সবার", "কিছু", "সবচেয়ে", "লেখা", "শব্দ", "নতুন", "সব",
             "কাজ", "ঠিক", "আসছে", "আসছিল", "হচ্ছে", "হচ্ছিল", "কিন্তু", "কথা", "কোথায়",
             "কোথাও", "বাইরে", "ভেতরে", "ভিতরে", "এখন", "আগে", "পরে", "দূরত্ব", "নিরাপদ",
-            "ব্লিংক", "টাইপিং", "বিস্তারিত"
+            "ব্লিংক", "টাইপিং", "বিস্তারিত",
+            "হওয়া", "হওয়ার", "হওয়াতে", "হওয়ায়", "খাওয়া", "খাওয়ার", "দেওয়া", "দেওয়ার",
+            "যাওয়া", "যাওয়ার", "পাওয়া", "পাওয়ার", "নেওয়া", "নেওয়ার", "চাওয়া", "চাওয়ার",
+            "ধোয়া", "ধোওয়া", "শোওয়া", "শোয়া",
+            "এমন", "এমনি", "এমনই", "যেমন", "যেমনি", "যেমনই", "তেমন", "তেমনি", "তেমনই", "কেমন", "কেমনি", "কেমনই",
+            "আস্তে", "আসতে", "তখন", "তখনই", "তখনি", "এখনই", "এখনি",
+            "চোখ", "চোখে", "চোখের", "লোক", "লোকে", "লোকের", "রোগ", "রোগে", "রোগের", "রোগী",
+            "বলো", "ছোট", "বড়ো", "বড়", "শোনো", "দরজা", "খবর", "পাঁচ"
         };
 
         public static readonly BanglishDictionary Shared = new BanglishDictionary();
@@ -285,6 +292,12 @@ namespace Banglish.Core
                 return preferred != null ? new List<string> { preferred, rawInput } : new List<string> { rawInput };
             }
 
+            // Normalize any unintended "ওা" into valid Bengali "ওয়া"
+            if (primary.IndexOf("ওা") >= 0)
+            {
+                primary = primary.Replace("ওা", "ওয়া");
+            }
+
             List<string> result = new List<string>();
             HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
 
@@ -385,11 +398,99 @@ namespace Banglish.Core
                 if (w.IndexOf('\u099F') >= 0) variants.Add(w.Replace('\u099F', '\u09A4'));
             }
 
-            // Rule O: o-kar ambiguity (khoj -> খোজ/খোঁজ, chok -> চোখ)
-            if (rawInput.IndexOf('o') >= 0 && primary.IndexOf("ো") < 0)
+            // Rule KH: ক <-> খ (0x0995 vs 0x0996) e.g. chok -> চোখ, boka -> বোকা
+            List<string> curKH = new List<string>(variants);
+            curKH.Add(primary);
+            foreach (var w in curKH)
             {
-                string transO = BanglishEngine.Shared.Transliterate(rawInput.Replace("o", "O"));
-                if (!string.IsNullOrEmpty(transO)) variants.Add(transO);
+                if (w.IndexOf('\u0995') >= 0) variants.Add(w.Replace('\u0995', '\u0996'));
+                if (w.IndexOf('\u0996') >= 0) variants.Add(w.Replace('\u0996', '\u0995'));
+            }
+
+            // Rule O: o-kar ambiguity (chok -> চোখ, lok -> লোক, rog -> রোগ, koro -> করো, bolo -> বলো, choto -> ছোট, boro -> বড়/বড়ো, kothao -> কোথাও)
+            if (rawInput.IndexOf('o') >= 0)
+            {
+                // All 'o' replaced by 'O'
+                string allO = BanglishEngine.Shared.Transliterate(rawInput.Replace("o", "O"));
+                if (!string.IsNullOrEmpty(allO)) variants.Add(allO);
+
+                // Last 'o' replaced by 'O' (verb & adjective endings: koro -> করো, bolo -> বলো, choto -> ছোট, boro -> বড়ো, shono -> শোনো)
+                int lastO = rawInput.LastIndexOf('o');
+                if (lastO >= 0)
+                {
+                    string lastOStr = rawInput.Substring(0, lastO) + "O" + rawInput.Substring(lastO + 1);
+                    string transLastO = BanglishEngine.Shared.Transliterate(lastOStr);
+                    if (!string.IsNullOrEmpty(transLastO)) variants.Add(transLastO);
+                }
+
+                // First 'o' replaced by 'O' (e.g. kothao -> কোথাও)
+                int firstO = rawInput.IndexOf('o');
+                if (firstO >= 0 && firstO != lastO)
+                {
+                    string firstOStr = rawInput.Substring(0, firstO) + "O" + rawInput.Substring(firstO + 1);
+                    string transFirstO = BanglishEngine.Shared.Transliterate(firstOStr);
+                    if (!string.IsNullOrEmpty(transFirstO)) variants.Add(transFirstO);
+                }
+            }
+
+            // Rule W: wa / wya / oa -> ওয়া normalization & expansion (howa/howya -> হওয়া, khawa -> খাওয়া, dewa -> দেওয়া, jawa -> যাওয়া, pawa -> পাওয়া)
+            List<string> curW = new List<string>(variants);
+            curW.Add(primary);
+            foreach (var w in curW)
+            {
+                if (w.IndexOf("ওা") >= 0) variants.Add(w.Replace("ওা", "ওয়া"));
+            }
+
+            // Rule MN: Consonant shorthand expansion (emn -> এমন/এম্ন, kmn -> কেমন/কম্ন, tmn -> তেমন/তম্ন, jmn -> যেমন/জম্ন, amn -> এমন/আমন)
+            List<string> curMN = new List<string>(variants);
+            curMN.Add(primary);
+            foreach (var w in curMN)
+            {
+                if (w.IndexOf("ম্ন") >= 0)
+                {
+                    variants.Add(w.Replace("ম্ন", "মন"));
+                }
+            }
+            if (rawInput.EndsWith("mn", StringComparison.OrdinalIgnoreCase))
+            {
+                string baseStem = rawInput.Substring(0, rawInput.Length - 2);
+                string withO = BanglishEngine.Shared.Transliterate(baseStem + "on");
+                if (!string.IsNullOrEmpty(withO)) variants.Add(withO);
+
+                string withMon = BanglishEngine.Shared.Transliterate(baseStem + "mon");
+                if (!string.IsNullOrEmpty(withMon)) variants.Add(withMon);
+
+                if (baseStem.Length == 1 && "bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ".IndexOf(baseStem[0]) >= 0)
+                {
+                    string withE = BanglishEngine.Shared.Transliterate(baseStem + "emon");
+                    if (!string.IsNullOrEmpty(withE)) variants.Add(withE);
+                }
+            }
+
+            // Rule ST: Conjunct vs Non-conjunct (aste -> আস্তে & আসতে, boste -> বস্তে & বসতে, haste -> হস্তে & হাসতে)
+            List<string> curST = new List<string>(variants);
+            curST.Add(primary);
+            foreach (var w in curST)
+            {
+                if (w.IndexOf("স্ত") >= 0)
+                {
+                    variants.Add(w.Replace("স্ত", "সত"));
+                }
+            }
+            if (rawInput.IndexOf("ste") >= 0)
+            {
+                string modST = rawInput.Replace("ste", "s`te");
+                string transST = BanglishEngine.Shared.Transliterate(modST);
+                if (!string.IsNullOrEmpty(transST)) variants.Add(transST);
+            }
+
+            // Rule NI: Emphatic suffix ni <-> noi (jemoni -> যেমনই & যেমনি, temoni -> তেমনই & তেমনি, emoni -> এমনই & এমনি, kemoni -> কেমনই & কেমনি)
+            List<string> curNI = new List<string>(variants);
+            curNI.Add(primary);
+            foreach (var w in curNI)
+            {
+                if (w.EndsWith("নি")) variants.Add(w.Substring(0, w.Length - 2) + "নই");
+                if (w.EndsWith("নই")) variants.Add(w.Substring(0, w.Length - 2) + "নি");
             }
 
             // Rule P: Y, Ja-fola (্য), Antostho-A (য়), Vowel (আই/ই) & W/War (ওয়্যার) variants
@@ -530,17 +631,9 @@ namespace Banglish.Core
                 {
                     if (w.IndexOf(pair.From) >= 0) variants.Add(w.Replace(pair.From, pair.To));
                 }
-
-                for (int i = 0; i < w.Length; i++)
-                {
-                    char ch = w[i];
-                    if ("ািীুূৃেৈোৌ".IndexOf(ch) >= 0 || "অআইঈউঊঋএঐওঔ".IndexOf(ch) >= 0)
-                    {
-                        if (i + 1 < w.Length && w[i + 1] == 'ঁ') continue;
-                        variants.Add(w.Insert(i + 1, "ঁ"));
-                    }
-                }
             }
+
+            bool userExplicitChandrabindu = rawInput.IndexOf('^') >= 0;
 
             // Prioritize dictionary confirmed variants:
             List<string> confirmedList = new List<string>();
@@ -562,6 +655,51 @@ namespace Banglish.Core
                 }
             }
 
+            confirmedList.Sort((a, b) =>
+            {
+                if (rawInput.Equals("kmn", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (a == "কেমন") return -1;
+                    if (b == "কেমন") return 1;
+                }
+                if (rawInput.Equals("tmn", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (a == "তেমন") return -1;
+                    if (b == "তেমন") return 1;
+                }
+                if (rawInput.Equals("jmn", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (a == "যেমন") return -1;
+                    if (b == "যেমন") return 1;
+                }
+                if (rawInput.Equals("emn", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (a == "এমন") return -1;
+                    if (b == "এমন") return 1;
+                }
+                if (rawInput.Equals("chok", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (a == "চোখ") return -1;
+                    if (b == "চোখ") return 1;
+                }
+                if (rawInput.Equals("howa", StringComparison.OrdinalIgnoreCase) || rawInput.Equals("howya", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (a == "হওয়া") return -1;
+                    if (b == "হওয়া") return 1;
+                }
+
+                // If user typed 'o' at the end (bolo, koro, etc.), prioritize words ending in 'ো'
+                if (rawInput.EndsWith("o"))
+                {
+                    bool aO = a.EndsWith("ো");
+                    bool bO = b.EndsWith("ো");
+                    if (aO && !bO) return -1;
+                    if (!aO && bO) return 1;
+                }
+
+                return 0;
+            });
+
             bool primaryConfirmed = false;
             lock (_lock)
             {
@@ -582,7 +720,7 @@ namespace Banglish.Core
             }
             else
             {
-                // Primary is unconfirmed, but dictionary has verified accurate spellings (e.g. chad -> চাঁদ #1, has -> হাঁস #1, daktar -> ডাক্তার #1)
+                // Primary is unconfirmed, but dictionary has verified accurate spellings (e.g. howa -> হওয়া #1, chad -> চাঁদ #1, has -> হাঁস #1, daktar -> ডাক্তার #1)
                 foreach (var v in confirmedList)
                 {
                     if (result.Count >= 7) break;
@@ -597,8 +735,8 @@ namespace Banglish.Core
             foreach (var v in unconfirmedList)
             {
                 if (result.Count >= 7) break;
-                // Avoid too many random chandrabindu variants if unconfirmed
-                if (v.IndexOf('ঁ') >= 0 && !confirmedList.Contains(v)) continue;
+                // Suppress unconfirmed synthetic chandrabindu unless user explicitly typed '^'
+                if (v.IndexOf('ঁ') >= 0 && !userExplicitChandrabindu) continue;
                 addCandidate(v);
             }
 
@@ -606,6 +744,7 @@ namespace Banglish.Core
             foreach (var v in unconfirmedList)
             {
                 if (result.Count >= 7) break;
+                if (v.IndexOf('ঁ') >= 0 && !userExplicitChandrabindu) continue;
                 addCandidate(v);
             }
 

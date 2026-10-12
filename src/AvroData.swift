@@ -465,9 +465,16 @@ public struct AvroData {
         ]),
         AvroPattern(find: "Y", replace: "য়", rules: nil),
         AvroPattern(find: "q", replace: "ক", rules: nil),
+        AvroPattern(find: "wya", replace: "ওয়া", rules: nil),
+        AvroPattern(find: "wZ", replace: "ওয়া", rules: nil),
+        AvroPattern(find: "wy", replace: "ওয়", rules: nil),
         AvroPattern(find: "w", replace: "ও", rules: [
             AvroRule(matches: [
                 AvroMatch(type: "p", scope: "p", negative: false, value: ""),
+                AvroMatch(type: "s", scope: "v", negative: false, value: ""),
+            ], replace: "ওয়"),
+            AvroRule(matches: [
+                AvroMatch(type: "p", scope: "v", negative: false, value: ""),
                 AvroMatch(type: "s", scope: "v", negative: false, value: ""),
             ], replace: "ওয়"),
             AvroRule(matches: [

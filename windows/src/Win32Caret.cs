@@ -174,8 +174,8 @@ namespace Banglish.Core
                 }
             }
 
-            // 4. Stable typing memory: if we had a valid caret in this foreground window within 5 seconds, keep it!
-            if (!_lastKnownCaretRect.IsEmpty && (Environment.TickCount - _lastCaretTick) < 5000)
+            // 4. Stable typing memory: hold last known caret briefly (800ms) to prevent jitter without freezing across multi-line text
+            if (!_lastKnownCaretRect.IsEmpty && (Environment.TickCount - _lastCaretTick) < 800)
             {
                 if (_lastKnownCaretRect.Left >= fgRect.Left && _lastKnownCaretRect.Left <= fgRect.Right &&
                     _lastKnownCaretRect.Top >= fgRect.Top && _lastKnownCaretRect.Top <= fgRect.Bottom)

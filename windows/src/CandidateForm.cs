@@ -203,26 +203,27 @@ namespace Banglish.UI
             Rectangle caretRect = Win32Caret.GetCaretRect();
             Rectangle screen = Screen.FromPoint(new Point(caretRect.Left, caretRect.Top)).WorkingArea;
 
-            int x = caretRect.Left;
+            // Dynamically follow the active typing position as characters are added to the word
+            int rawLen = !string.IsNullOrEmpty(currentRaw) ? currentRaw.Length : 0;
+            int textAdvance = Math.Max(0, (rawLen - 1) * 9);
+            int activeX = caretRect.Left + textAdvance;
+
             int formW = this.Width;
             int formH = this.Height;
+            const int gap = 8;
 
-            // Natural 6px distance directly next to the typing bar
-            const int gap = 6;
-
-            // Calculate free space below and above the typing bar
             int spaceBelow = screen.Bottom - (caretRect.Bottom + gap);
             int spaceAbove = (caretRect.Top - gap) - screen.Top;
 
             int y;
             if (spaceBelow >= formH)
             {
-                // Plenty of room below typing bar
+                // Plenty of room below typing bar -> place right below
                 y = caretRect.Bottom + gap;
             }
             else if (spaceAbove >= formH)
             {
-                // Tight below, but plenty of room above typing bar -> flip above
+                // Room above typing bar -> flip cleanly above
                 y = caretRect.Top - formH - gap;
             }
             else
@@ -231,6 +232,7 @@ namespace Banglish.UI
                 y = (spaceBelow >= spaceAbove) ? (caretRect.Bottom + gap) : (caretRect.Top - formH - gap);
             }
 
+            int x = activeX;
             // Keep horizontally attached directly to typing caret, clamped safely inside screen
             if (x + formW > screen.Right - 8)
             {
@@ -241,7 +243,17 @@ namespace Banglish.UI
                 x = screen.Left + 8;
             }
 
-            // Vertical screen clamp
+            // Vertical safety: never overlap the text cursor line itself
+            if (y < caretRect.Top && y + formH > caretRect.Top - 2)
+            {
+                y = caretRect.Top - formH - 2;
+            }
+            else if (y >= caretRect.Top && y < caretRect.Bottom + 2)
+            {
+                y = caretRect.Bottom + 2;
+            }
+
+            // Screen edge clamps
             if (y + formH > screen.Bottom - 4)
             {
                 y = screen.Bottom - formH - 4;

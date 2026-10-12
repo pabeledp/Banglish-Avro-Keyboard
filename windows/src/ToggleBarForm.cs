@@ -33,6 +33,18 @@ namespace Banglish.UI
         [DllImport("user32.dll")]
         private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetShellWindow();
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetDesktopWindow();
+
         [StructLayout(LayoutKind.Sequential)]
         private struct RECT
         {
@@ -87,18 +99,80 @@ namespace Banglish.UI
             // Custom UI right-click menu card
             _customMenu = new ToggleMenuForm(_hook, this);
 
-            // Heartbeat timer to guarantee toggle button stays permanently locked at bottom right
+            // Heartbeat timer to guarantee toggle button stays strictly on taskbar and hides during fullscreen/taskbar-hide
             _keepAliveTimer = new System.Windows.Forms.Timer();
-            _keepAliveTimer.Interval = 2500;
+            _keepAliveTimer.Interval = 350;
             _keepAliveTimer.Tick += (s, e) =>
             {
-                if (!this.Visible && !_userClosed)
+                if (_userClosed) return;
+
+                Screen screen = Screen.PrimaryScreen;
+                bool shouldShow = IsTaskbarVisible(screen);
+
+                if (!shouldShow)
                 {
-                    this.Show();
+                    if (this.Visible) this.Hide();
                 }
-                SetDefaultPosition();
+                else
+                {
+                    if (!this.Visible) this.Show();
+                    SetDefaultPosition();
+                }
             };
             _keepAliveTimer.Start();
+        }
+
+        private bool IsTaskbarVisible(Screen screen)
+        {
+            try
+            {
+                IntPtr tbHwnd = FindWindow("Shell_TrayWnd", null);
+                if (tbHwnd == IntPtr.Zero || !IsWindowVisible(tbHwnd))
+                {
+                    return false;
+                }
+
+                RECT tbRect;
+                if (!GetWindowRect(tbHwnd, out tbRect))
+                {
+                    return false;
+                }
+
+                // If taskbar is auto-hidden at the bottom (only a tiny line peeking):
+                if ((tbRect.Bottom - tbRect.Top) <= 6 || tbRect.Top >= screen.Bounds.Bottom - 4)
+                {
+                    return false;
+                }
+
+                // Check if a foreground app is running in true Fullscreen (e.g. YouTube Fullscreen, Video Preview, Games)
+                IntPtr fg = GetForegroundWindow();
+                if (fg != IntPtr.Zero && fg != tbHwnd && fg != this.Handle)
+                {
+                    IntPtr shell = GetShellWindow();
+                    IntPtr desktop = GetDesktopWindow();
+                    if (fg != shell && fg != desktop)
+                    {
+                        RECT fgRect;
+                        if (GetWindowRect(fg, out fgRect))
+                        {
+                            // If foreground window covers the entire primary screen, full screen video/app is active!
+                            if (fgRect.Left <= screen.Bounds.Left &&
+                                fgRect.Top <= screen.Bounds.Top &&
+                                fgRect.Right >= screen.Bounds.Right &&
+                                fgRect.Bottom >= screen.Bounds.Bottom)
+                            {
+                                return false; // Fullscreen app active -> hide toggle!
+                            }
+                        }
+                    }
+                }
+
+                return true;
+            }
+            catch
+            {
+                return true;
+            }
         }
 
         public void HideToggle()
@@ -195,6 +269,12 @@ namespace Banglish.UI
             try
             {
                 Screen screen = Screen.PrimaryScreen;
+                if (!IsTaskbarVisible(screen))
+                {
+                    if (this.Visible) this.Hide();
+                    return;
+                }
+
                 Rectangle bounds = screen.Bounds;
                 Rectangle wa = screen.WorkingArea;
 

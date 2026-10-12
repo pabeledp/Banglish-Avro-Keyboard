@@ -476,9 +476,16 @@ namespace Banglish.Core
             }),
             new AvroPattern("Y", "য়"),
             new AvroPattern("q", "ক"),
+            new AvroPattern("wya", "ওয়া"),
+            new AvroPattern("wZ", "ওয়া"),
+            new AvroPattern("wy", "ওয়"),
             new AvroPattern("w", "ও", new List<AvroRule> {
                 new AvroRule(new List<AvroMatch> {
                     new AvroMatch("p", "p", false, ""),
+                    new AvroMatch("s", "v", false, "")
+                }, "ওয়"),
+                new AvroRule(new List<AvroMatch> {
+                    new AvroMatch("p", "v", false, ""),
                     new AvroMatch("s", "v", false, "")
                 }, "ওয়"),
                 new AvroRule(new List<AvroMatch> {
