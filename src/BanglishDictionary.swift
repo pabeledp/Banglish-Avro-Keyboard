@@ -21,7 +21,12 @@ public final class BanglishDictionary {
         "পানি", "পানী", "নদী", "নদি", "সূর্য", "সুর্য", "কারণ", "কারন",
         "মানুষ", "মানুস", "দেশ", "দেশের", "বিপদ", "বিপদ্", "হঠাৎ", "হঠাত",
         "সৃষ্টি", "সৃষ্টী", "অনুষ্ঠান", "পুষ্প", "অঙ্ক", "অংক", "সঙ্গ", "সংগ",
-        "ব্যাংক", "ব্যাঙ্ক", "ইউআই", "ট্যাংক", "সফটওয়্যার", "ভালো", "ভাল", "কেমন", "আছো", "আছেন", "ধন্যবাদ", "স্বাগতম"
+        "ব্যাংক", "ব্যাঙ্ক", "ইউআই", "ট্যাংক", "সফটওয়্যার", "ভালো", "ভাল", "কেমন", "আছো", "আছেন", "ধন্যবাদ", "স্বাগতম",
+        "চাঁদ", "হাঁস", "বাঁধা", "খোঁজ", "ডাক্তার", "সুন্দর", "নির্ভুল", "প্রবলেম",
+        "ডিভাইস", "আপডেট", "কিবোর্ড", "সাজেশন", "প্লেসমেন্ট", "করব", "করবে", "করো",
+        "হবে", "সময়", "সবার", "কিছু", "সবচেয়ে", "লেখা", "শব্দ", "নতুন", "সব",
+        "কাজ", "ঠিক", "আসছে", "আসছিল", "হচ্ছে", "হচ্ছিল", "কিন্তু", "কথা", "কোথায়",
+        "কোথাও", "বাইরে", "ভেতরে", "ভিতরে", "এখন", "আগে", "পরে", "দূরত্ব", "নিরাপদ"
     ]
 
     // Fast built-in autocorrect seed mappings
@@ -42,6 +47,7 @@ public final class BanglishDictionary {
         "software": "সফটওয়্যার",
         "hardware": "হার্ডওয়্যার",
         "doctor": "ডাক্তার",
+        "daktar": "ডাক্তার",
         "hospital": "হাসপাতাল",
         "police": "পুলিশ",
         "card": "কার্ড",
@@ -55,7 +61,37 @@ public final class BanglishDictionary {
         "laptop": "ল্যাপটপ",
         "computer": "কম্পিউটার",
         "internet": "ইন্টারনেট",
-        "online": "অনলাইন"
+        "online": "অনলাইন",
+        "chad": "চাঁদ",
+        "has": "হাঁস",
+        "badha": "বাঁধা",
+        "khuj": "খোঁজ",
+        "khoj": "খোঁজ",
+        "shundor": "সুন্দর",
+        "sundor": "সুন্দর",
+        "dhonnobad": "ধন্যবাদ",
+        "nirvul": "নির্ভুল",
+        "problem": "প্রবলেম",
+        "device": "ডিভাইস",
+        "update": "আপডেট",
+        "keyboard": "কিবোর্ড",
+        "suggestion": "সাজেশন",
+        "placement": "প্লেসমেন্ট",
+        "bhalo": "ভালো",
+        "valo": "ভালো",
+        "kemon": "কেমন",
+        "achen": "আছেন",
+        "korbo": "করব",
+        "korbe": "করবে",
+        "koro": "করো",
+        "hobe": "হবে",
+        "somoy": "সময়",
+        "sobar": "সবার",
+        "kichu": "কিছু",
+        "shobcheye": "সবচেয়ে",
+        "sobcheye": "সবচেয়ে",
+        "nirapod": "নিরাপদ",
+        "durotto": "দূরত্ব"
     ]
 
     private init() {
@@ -205,9 +241,6 @@ public final class BanglishDictionary {
         if let pref = preferred {
             addCandidate(pref)
         }
-
-        // 2. Direct engine transliteration is candidate #1 (or #2 if preferred exists)
-        addCandidate(primary)
 
         // 2. Generate phonetic variants based on Bengali orthographic ambiguities
         var variants: Set<String> = []
@@ -583,16 +616,32 @@ public final class BanglishDictionary {
         }
         lock.unlock()
 
-        // Add confirmed Chandrabindu words first (after primary)
-        for v in cbConfirmed {
-            if result.count >= 8 { break }
-            addCandidate(v)
-        }
+        let primaryConfirmed = self.contains(primary)
 
-        // Add other confirmed dictionary words
-        for v in otherConfirmed {
-            if result.count >= 8 { break }
-            addCandidate(v)
+        if primaryConfirmed {
+            // Primary transliteration is an authenticated dictionary word (highest accuracy)
+            addCandidate(primary)
+
+            for v in cbConfirmed {
+                if result.count >= 8 { break }
+                addCandidate(v)
+            }
+            for v in otherConfirmed {
+                if result.count >= 8 { break }
+                addCandidate(v)
+            }
+        } else {
+            // Primary is unconfirmed, prioritize verified accurate dictionary spellings
+            for v in cbConfirmed {
+                if result.count >= 8 { break }
+                addCandidate(v)
+            }
+            for v in otherConfirmed {
+                if result.count >= 8 { break }
+                addCandidate(v)
+            }
+            // Add unconfirmed primary transliteration as fallback
+            addCandidate(primary)
         }
 
         // If list still has room, add remaining phonetic variants

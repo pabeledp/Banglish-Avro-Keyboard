@@ -200,21 +200,25 @@ namespace Banglish.UI
 
         public void PositionNearCaret()
         {
-            Point caretPos = Win32Caret.GetCaretScreenPosition();
-            Rectangle screen = Screen.FromPoint(caretPos).WorkingArea;
+            Rectangle caretRect = Win32Caret.GetCaretRect();
+            Point anchorPt = new Point(caretRect.Left, caretRect.Bottom);
+            Rectangle screen = Screen.FromPoint(anchorPt).WorkingArea;
 
-            int x = caretPos.X;
-            int y = caretPos.Y + 40; // Generous 40px spacing below typing caret so it never overlaps
+            int x = caretRect.Left;
+            const int safeGap = 12; // Clean 12px safe distance so it NEVER overlaps typed text
+            int y = caretRect.Bottom + safeGap; // Placed below current text line
 
-            if (x + this.Width > screen.Right)
-            {
-                x = screen.Right - this.Width - 14;
-            }
+            // Flip above the text line if there isn't enough vertical room at the bottom
             if (y + this.Height > screen.Bottom)
             {
-                y = caretPos.Y - this.Height - 16;
+                y = caretRect.Top - this.Height - safeGap;
             }
 
+            // Boundary checks
+            if (x + this.Width > screen.Right - 10)
+            {
+                x = screen.Right - this.Width - 10;
+            }
             if (x < screen.Left + 8) x = screen.Left + 8;
             if (y < screen.Top + 8) y = screen.Top + 8;
 

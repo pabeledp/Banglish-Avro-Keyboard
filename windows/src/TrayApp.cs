@@ -17,12 +17,14 @@ namespace Banglish
     {
         private const int WM_HOTKEY = 0x0312;
         private const int HOTKEY_ID = 9112;
+        private const int HOTKEY_CTRL_SPACE_ID = 9114;
+        private const uint MOD_CONTROL = 0x0002;
         private const uint MOD_NOREPEAT = 0x4000;
         private const uint VK_F12 = 0x7B;
+        private const uint VK_SPACE = 0x20;
 
 #if VOICE_BETA
         private const int HOTKEY_VOICE_ID = 9113;
-        private const uint MOD_CONTROL = 0x0002;
         public event Action VoiceHotkeyPressed;
 #endif
 
@@ -45,8 +47,15 @@ namespace Banglish
                 RegisterHotKey(this.Handle, HOTKEY_ID, 0, VK_F12);
             }
 
+            // 2. Language Toggle: Ctrl + Space
+            bool spaceOk = RegisterHotKey(this.Handle, HOTKEY_CTRL_SPACE_ID, MOD_CONTROL | MOD_NOREPEAT, VK_SPACE);
+            if (!spaceOk)
+            {
+                RegisterHotKey(this.Handle, HOTKEY_CTRL_SPACE_ID, MOD_CONTROL, VK_SPACE);
+            }
+
 #if VOICE_BETA
-            // 2. Voice Typing Toggle: Ctrl + F12
+            // 3. Voice Typing Toggle: Ctrl + F12
             bool voiceOk = RegisterHotKey(this.Handle, HOTKEY_VOICE_ID, MOD_CONTROL | MOD_NOREPEAT, VK_F12);
             if (!voiceOk)
             {
@@ -60,7 +69,7 @@ namespace Banglish
             if (m.Msg == WM_HOTKEY)
             {
                 int id = (int)m.WParam;
-                if (id == HOTKEY_ID)
+                if (id == HOTKEY_ID || id == HOTKEY_CTRL_SPACE_ID)
                 {
                     if (HotkeyPressed != null) HotkeyPressed();
                     return;
@@ -81,6 +90,7 @@ namespace Banglish
             try
             {
                 UnregisterHotKey(this.Handle, HOTKEY_ID);
+                UnregisterHotKey(this.Handle, HOTKEY_CTRL_SPACE_ID);
 #if VOICE_BETA
                 UnregisterHotKey(this.Handle, HOTKEY_VOICE_ID);
 #endif

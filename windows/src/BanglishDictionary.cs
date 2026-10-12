@@ -22,7 +22,13 @@ namespace Banglish.Core
             "সৃষ্টি", "সৃষ্টী", "অনুষ্ঠান", "পুষ্প", "অঙ্ক", "অংক", "সঙ্গ", "সংগ",
             "ভালো", "ভাল", "কেমন", "আছো", "আছেন", "ধন্যবাদ", "স্বাগতম",
             "হাফেজ", "হাফেয", "নামাজ", "নামায", "কাগজ", "কাগয", "জাহাজ", "জাহায",
-            "ইউআই", "জিইউআই", "সফটওয়্যার", "হার্ডওয়্যার", "ফার্মওয়্যার", "ওয়েবসাইট", "কম্পিউটার"
+            "ইউআই", "জিইউআই", "সফটওয়্যার", "হার্ডওয়্যার", "ফার্মওয়্যার", "ওয়েবসাইট", "কম্পিউটার",
+            "চাঁদ", "হাঁস", "বাঁধা", "খোঁজ", "ডাক্তার", "সুন্দর", "নির্ভুল", "প্রবলেম",
+            "ডিভাইস", "আপডেট", "কিবোর্ড", "সাজেশন", "প্লেসমেন্ট", "করব", "করবে", "করো",
+            "হবে", "সময়", "সবার", "কিছু", "সবচেয়ে", "লেখা", "শব্দ", "নতুন", "সব",
+            "কাজ", "ঠিক", "আসছে", "আসছিল", "হচ্ছে", "হচ্ছিল", "কিন্তু", "কথা", "কোথায়",
+            "কোথাও", "বাইরে", "ভেতরে", "ভিতরে", "এখন", "আগে", "পরে", "দূরত্ব", "নিরাপদ",
+            "ব্লিংক", "টাইপিং", "বিস্তারিত"
         };
 
         public static readonly BanglishDictionary Shared = new BanglishDictionary();
@@ -73,6 +79,7 @@ namespace Banglish.Core
             { "software", "সফটওয়্যার" },
             { "hardware", "হার্ডওয়্যার" },
             { "doctor", "ডাক্তার" },
+            { "daktar", "ডাক্তার" },
             { "hospital", "হাসপাতাল" },
             { "police", "পুলিশ" },
             { "card", "কার্ড" },
@@ -80,7 +87,39 @@ namespace Banglish.Core
             { "phone", "ফোন" },
             { "office", "অফিস" },
             { "college", "কলেজ" },
-            { "account", "অ্যাকাউন্ট" }
+            { "account", "অ্যাকাউন্ট" },
+            { "chad", "চাঁদ" },
+            { "has", "হাঁস" },
+            { "badha", "বাঁধা" },
+            { "khuj", "খোঁজ" },
+            { "khoj", "খোঁজ" },
+            { "shundor", "সুন্দর" },
+            { "sundor", "সুন্দর" },
+            { "dhonnobad", "ধন্যবাদ" },
+            { "nirvul", "নির্ভুল" },
+            { "problem", "প্রবলেম" },
+            { "device", "ডিভাইস" },
+            { "update", "আপডেট" },
+            { "keyboard", "কিবোর্ড" },
+            { "suggestion", "সাজেশন" },
+            { "placement", "প্লেসমেন্ট" },
+            { "bhalo", "ভালো" },
+            { "valo", "ভালো" },
+            { "kemon", "কেমন" },
+            { "achen", "আছেন" },
+            { "korbo", "করব" },
+            { "korbe", "করবে" },
+            { "koro", "করো" },
+            { "hobe", "হবে" },
+            { "somoy", "সময়" },
+            { "sobar", "সবার" },
+            { "kichu", "কিছু" },
+            { "shobcheye", "সবচেয়ে" },
+            { "sobcheye", "সবচেয়ে" },
+            { "nirapod", "নিরাপদ" },
+            { "durotto", "দূরত্ব" },
+            { "blinking", "ব্লিংকিং" },
+            { "typing", "টাইপিং" }
         };
 
         private BanglishDictionary()
@@ -265,9 +304,6 @@ namespace Banglish.Core
             {
                 addCandidate(preferred);
             }
-
-            // 2. Direct engine transliteration
-            addCandidate(primary);
 
             HashSet<string> variants = new HashSet<string>(StringComparer.Ordinal);
 
@@ -526,11 +562,35 @@ namespace Banglish.Core
                 }
             }
 
-            // Confirmed dictionary words come first (e.g. ইউআই, সফটওয়্যার, হাফেজ)
-            foreach (var v in confirmedList)
+            bool primaryConfirmed = false;
+            lock (_lock)
             {
-                if (result.Count >= 7) break;
-                addCandidate(v);
+                primaryConfirmed = _words.Contains(primary);
+            }
+
+            if (primaryConfirmed)
+            {
+                // Primary transliteration is an authenticated dictionary word (highest accuracy)
+                addCandidate(primary);
+
+                // Confirmed dictionary words come next
+                foreach (var v in confirmedList)
+                {
+                    if (result.Count >= 7) break;
+                    addCandidate(v);
+                }
+            }
+            else
+            {
+                // Primary is unconfirmed, but dictionary has verified accurate spellings (e.g. chad -> চাঁদ #1, has -> হাঁস #1, daktar -> ডাক্তার #1)
+                foreach (var v in confirmedList)
+                {
+                    if (result.Count >= 7) break;
+                    addCandidate(v);
+                }
+
+                // Add unconfirmed primary transliteration as fallback
+                addCandidate(primary);
             }
 
             // Other unconfirmed phonetic variants (sort by length and distance from primary)

@@ -86,8 +86,7 @@ namespace Banglish.Core
 
         public void CommitSelectedCandidate(string candidate)
         {
-            int prevCount = _lastComposed.Length;
-            ReplaceComposedText(prevCount, candidate);
+            ReplaceComposedText(_lastComposed, candidate);
             Buffer.Clear();
             _lastComposed = "";
             _currentCandidates.Clear();
@@ -98,19 +97,24 @@ namespace Banglish.Core
         public void ToggleMode()
         {
             long now = Environment.TickCount;
-            if (now - _lastToggleTick < 300)
+            if (now - _lastToggleTick < 250)
             {
                 // Prevent duplicate rapid triggers (e.g. from simultaneous hook & hotkey)
                 return;
             }
             _lastToggleTick = now;
 
+            // Finalize any in-progress composed word so the typed Bengali word stays cleanly in the editor
+            if (Buffer.Length > 0)
+            {
+                Buffer.Clear();
+                _lastComposed = "";
+                _currentCandidates.Clear();
+                _selectedCandidateIndex = 0;
+                TriggerCandidatesUpdate();
+            }
+
             IsEnabled = !IsEnabled;
-            Buffer.Clear();
-            _lastComposed = "";
-            _currentCandidates.Clear();
-            _selectedCandidateIndex = 0;
-            TriggerCandidatesUpdate();
             if (ModeToggled != null) ModeToggled(IsEnabled);
         }
 
@@ -145,12 +149,19 @@ namespace Banglish.Core
                         }
                         return (IntPtr)1;
                     }
-                    else if (!ctrlPressed && !altPressed && !shiftPressed)
+                    else if (!ctrlPressed && !altPressed)
                     {
-                        // Plain F12: Language Mode Toggle
+                        // Plain F12 or Shift + F12: Language Mode Toggle (even in the middle of words!)
                         ToggleMode();
                         return (IntPtr)1;
                     }
+                }
+
+                // Handle Ctrl + Space: Universal Alternate Language Mode Toggle (even in the middle of words!)
+                if (ctrlPressed && !altPressed && !shiftPressed && key == System.Windows.Forms.Keys.Space)
+                {
+                    ToggleMode();
+                    return (IntPtr)1;
                 }
 
                 if (!IsEnabled)
@@ -201,8 +212,7 @@ namespace Banglish.Core
                     {
                         _selectedCandidateIndex = (_selectedCandidateIndex + 1) % _currentCandidates.Count;
                         string chosen = _currentCandidates[_selectedCandidateIndex];
-                        int prevCount = _lastComposed.Length;
-                        ReplaceComposedText(prevCount, chosen);
+                        ReplaceComposedText(_lastComposed, chosen);
                         _lastComposed = chosen;
                         TriggerCandidatesUpdate();
                         return (IntPtr)1;
@@ -216,8 +226,7 @@ namespace Banglish.Core
                     {
                         _selectedCandidateIndex = (_selectedCandidateIndex - 1 + _currentCandidates.Count) % _currentCandidates.Count;
                         string chosen = _currentCandidates[_selectedCandidateIndex];
-                        int prevCount = _lastComposed.Length;
-                        ReplaceComposedText(prevCount, chosen);
+                        ReplaceComposedText(_lastComposed, chosen);
                         _lastComposed = chosen;
                         TriggerCandidatesUpdate();
                         return (IntPtr)1;
@@ -261,7 +270,6 @@ namespace Banglish.Core
                 {
                     if (Buffer.Length > 0)
                     {
-                        int prevCount = _lastComposed.Length;
                         Buffer.Remove(Buffer.Length - 1, 1);
 
                         if (Buffer.Length > 0)
@@ -270,12 +278,12 @@ namespace Banglish.Core
                             _selectedCandidateIndex = 0;
                             string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : BanglishEngine.Shared.Transliterate(Buffer.ToString());
 
-                            ReplaceComposedText(prevCount, newBangla);
+                            ReplaceComposedText(_lastComposed, newBangla);
                             _lastComposed = newBangla;
                         }
                         else
                         {
-                            ReplaceComposedText(prevCount, "");
+                            ReplaceComposedText(_lastComposed, "");
                             _lastComposed = "";
                             _currentCandidates.Clear();
                             _selectedCandidateIndex = 0;
@@ -292,7 +300,7 @@ namespace Banglish.Core
                 {
                     if (Buffer.Length > 0)
                     {
-                        ReplaceComposedText(_lastComposed.Length, "");
+                        ReplaceComposedText(_lastComposed, "");
                         Buffer.Clear();
                         _lastComposed = "";
                         _currentCandidates.Clear();
@@ -331,14 +339,13 @@ namespace Banglish.Core
                 char ch = GetCharFromKey(key);
                 if (ch != '\0')
                 {
-                    int prevCount = _lastComposed.Length;
                     Buffer.Append(ch);
 
                     _currentCandidates = BanglishDictionary.Shared.GetCandidates(Buffer.ToString());
                     _selectedCandidateIndex = 0;
                     string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : BanglishEngine.Shared.Transliterate(Buffer.ToString());
 
-                    ReplaceComposedText(prevCount, newBangla);
+                    ReplaceComposedText(_lastComposed, newBangla);
                     _lastComposed = newBangla;
 
                     TriggerCandidatesUpdate();
@@ -391,78 +398,165 @@ namespace Banglish.Core
             }
         }
 
+        public static void ReplaceComposedText(string oldText, string newText)
+        {
+            if (oldText == null) oldText = "";
+            if (newText == null) newText = "";
+            if (oldText == newText) return;
+
+            // Differential replacement: compute common prefix so unchanged characters are never deleted/re-rendered!
+            int commonPrefixLen = 0;
+            int minLen = Math.Min(oldText.Length, newText.Length);
+            while (commonPrefixLen < minLen && oldText[commonPrefixLen] == newText[commonPrefixLen])
+            {
+                commonPrefixLen++;
+            }
+
+            int backspaceCount = oldText.Length - commonPrefixLen;
+            string textToInsert = newText.Substring(commonPrefixLen);
+
+            if (backspaceCount == 0 && string.IsNullOrEmpty(textToInsert)) return;
+
+            // Pack both backspaces AND new Unicode characters into a SINGLE atomic SendInput batch!
+            // No sleep in between! The OS kernel delivers the batch atomically, completely eliminating flicker/blink!
+            int totalInputs = (backspaceCount * 2) + (textToInsert.Length * 2);
+            INPUT[] inputs = new INPUT[totalInputs];
+            int idx = 0;
+
+            // 1. Backspaces for the suffix that changed
+            for (int i = 0; i < backspaceCount; i++)
+            {
+                inputs[idx++] = new INPUT
+                {
+                    type = 1,
+                    U = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = 0x08, // VK_BACK
+                            wScan = 0x0E, // Hardware scan code for Backspace
+                            dwFlags = 0,
+                            time = 0,
+                            dwExtraInfo = MAGIC_COOKIE
+                        }
+                    }
+                };
+                inputs[idx++] = new INPUT
+                {
+                    type = 1,
+                    U = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = 0x08, // VK_BACK
+                            wScan = 0x0E,
+                            dwFlags = 0x0002, // KEYEVENTF_KEYUP
+                            time = 0,
+                            dwExtraInfo = MAGIC_COOKIE
+                        }
+                    }
+                };
+            }
+
+            // 2. New Unicode characters to insert
+            for (int i = 0; i < textToInsert.Length; i++)
+            {
+                char c = textToInsert[i];
+                inputs[idx++] = new INPUT
+                {
+                    type = 1,
+                    U = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = 0,
+                            wScan = (ushort)c,
+                            dwFlags = 0x0004, // KEYEVENTF_UNICODE
+                            time = 0,
+                            dwExtraInfo = MAGIC_COOKIE
+                        }
+                    }
+                };
+                inputs[idx++] = new INPUT
+                {
+                    type = 1,
+                    U = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = 0,
+                            wScan = (ushort)c,
+                            dwFlags = 0x0004 | 0x0002, // KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
+                            time = 0,
+                            dwExtraInfo = MAGIC_COOKIE
+                        }
+                    }
+                };
+            }
+
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            if (sent == 0)
+            {
+                for (int i = 0; i < backspaceCount; i++)
+                {
+                    keybd_event(0x08, 0x0E, 0, MAGIC_COOKIE);
+                    keybd_event(0x08, 0x0E, 2, MAGIC_COOKIE);
+                }
+                foreach (char c in textToInsert)
+                {
+                    keybd_event(0, (byte)c, 0x0004, MAGIC_COOKIE);
+                    keybd_event(0, (byte)c, 0x0004 | 0x0002, MAGIC_COOKIE);
+                }
+            }
+        }
+
         public static void ReplaceComposedText(int backspaceCount, string newText)
         {
             if (backspaceCount == 0 && string.IsNullOrEmpty(newText)) return;
+            int totalInputs = (backspaceCount * 2) + ((newText != null ? newText.Length : 0) * 2);
+            INPUT[] inputs = new INPUT[totalInputs];
+            int idx = 0;
 
-            // 1. Send Backspaces first with proper hardware scan code (0x0E)
-            if (backspaceCount > 0)
+            for (int i = 0; i < backspaceCount; i++)
             {
-                INPUT[] bsInputs = new INPUT[backspaceCount * 2];
-                int bsIdx = 0;
-
-                for (int i = 0; i < backspaceCount; i++)
+                inputs[idx++] = new INPUT
                 {
-                    bsInputs[bsIdx++] = new INPUT
+                    type = 1,
+                    U = new InputUnion
                     {
-                        type = 1,
-                        U = new InputUnion
+                        ki = new KEYBDINPUT
                         {
-                            ki = new KEYBDINPUT
-                            {
-                                wVk = 0x08, // VK_BACK
-                                wScan = 0x0E, // Hardware scan code for Backspace
-                                dwFlags = 0,
-                                time = 0,
-                                dwExtraInfo = MAGIC_COOKIE
-                            }
+                            wVk = 0x08,
+                            wScan = 0x0E,
+                            dwFlags = 0,
+                            time = 0,
+                            dwExtraInfo = MAGIC_COOKIE
                         }
-                    };
-                    bsInputs[bsIdx++] = new INPUT
-                    {
-                        type = 1,
-                        U = new InputUnion
-                        {
-                            ki = new KEYBDINPUT
-                            {
-                                wVk = 0x08, // VK_BACK
-                                wScan = 0x0E,
-                                dwFlags = 0x0002, // KEYEVENTF_KEYUP
-                                time = 0,
-                                dwExtraInfo = MAGIC_COOKIE
-                            }
-                        }
-                    };
-                }
-
-                uint bsSent = SendInput((uint)bsInputs.Length, bsInputs, Marshal.SizeOf(typeof(INPUT)));
-                if (bsSent == 0)
-                {
-                    for (int i = 0; i < backspaceCount; i++)
-                    {
-                        keybd_event(0x08, 0x0E, 0, MAGIC_COOKIE);
-                        keybd_event(0x08, 0x0E, 2, MAGIC_COOKIE);
                     }
-                }
-
-                // Micro yield (2ms) guarantees active application (Notepad, Word, browsers, etc.)
-                // completes deleting previous characters before new replacement characters arrive!
-                if (!string.IsNullOrEmpty(newText))
+                };
+                inputs[idx++] = new INPUT
                 {
-                    System.Threading.Thread.Sleep(2);
-                }
+                    type = 1,
+                    U = new InputUnion
+                    {
+                        ki = new KEYBDINPUT
+                        {
+                            wVk = 0x08,
+                            wScan = 0x0E,
+                            dwFlags = 0x0002,
+                            time = 0,
+                            dwExtraInfo = MAGIC_COOKIE
+                        }
+                    }
+                };
             }
 
-            // 2. Send New Transliterated Unicode Characters
             if (!string.IsNullOrEmpty(newText))
             {
-                INPUT[] textInputs = new INPUT[newText.Length * 2];
-                int tIdx = 0;
-
                 for (int i = 0; i < newText.Length; i++)
                 {
                     char c = newText[i];
-                    textInputs[tIdx++] = new INPUT
+                    inputs[idx++] = new INPUT
                     {
                         type = 1,
                         U = new InputUnion
@@ -471,13 +565,13 @@ namespace Banglish.Core
                             {
                                 wVk = 0,
                                 wScan = (ushort)c,
-                                dwFlags = 0x0004, // KEYEVENTF_UNICODE
+                                dwFlags = 0x0004,
                                 time = 0,
                                 dwExtraInfo = MAGIC_COOKIE
                             }
                         }
                     };
-                    textInputs[tIdx++] = new INPUT
+                    inputs[idx++] = new INPUT
                     {
                         type = 1,
                         U = new InputUnion
@@ -486,16 +580,24 @@ namespace Banglish.Core
                             {
                                 wVk = 0,
                                 wScan = (ushort)c,
-                                dwFlags = 0x0004 | 0x0002, // KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
+                                dwFlags = 0x0004 | 0x0002,
                                 time = 0,
                                 dwExtraInfo = MAGIC_COOKIE
                             }
                         }
                     };
                 }
+            }
 
-                uint tSent = SendInput((uint)textInputs.Length, textInputs, Marshal.SizeOf(typeof(INPUT)));
-                if (tSent == 0)
+            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
+            if (sent == 0)
+            {
+                for (int i = 0; i < backspaceCount; i++)
+                {
+                    keybd_event(0x08, 0x0E, 0, MAGIC_COOKIE);
+                    keybd_event(0x08, 0x0E, 2, MAGIC_COOKIE);
+                }
+                if (!string.IsNullOrEmpty(newText))
                 {
                     foreach (char c in newText)
                     {

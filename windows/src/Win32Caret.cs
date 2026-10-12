@@ -45,27 +45,68 @@ namespace Banglish.Core
         [DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT lpPoint);
 
-        public static Point GetCaretScreenPosition()
+        [DllImport("user32.dll")]
+        private static extern bool GetCaretPos(out POINT lpPoint);
+
+        private static Rectangle _lastKnownCaretRect = Rectangle.Empty;
+        private static long _lastCaretTick = 0;
+
+        public static Rectangle GetCaretRect()
         {
             GUITHREADINFO gui = new GUITHREADINFO();
             gui.cbSize = Marshal.SizeOf(gui);
 
-            if (GetGUIThreadInfo(0, ref gui) && gui.hwndCaret != IntPtr.Zero)
+            if (GetGUIThreadInfo(0, ref gui))
             {
-                POINT pt = new POINT { x = gui.rcCaret.Left, y = gui.rcCaret.Bottom };
-                if (ClientToScreen(gui.hwndCaret, ref pt))
+                IntPtr targetHwnd = gui.hwndCaret != IntPtr.Zero ? gui.hwndCaret : gui.hwndFocus;
+                if (targetHwnd != IntPtr.Zero)
                 {
-                    if (pt.x > 0 && pt.y > 0)
+                    int caretH = gui.rcCaret.Bottom - gui.rcCaret.Top;
+                    if (caretH <= 0 || caretH > 80) caretH = 22; // standard text line height
+
+                    POINT ptTop = new POINT { x = gui.rcCaret.Left, y = gui.rcCaret.Top };
+                    if (ClientToScreen(targetHwnd, ref ptTop) && ptTop.x > 0 && ptTop.y > 0)
                     {
-                        return new Point(pt.x, pt.y);
+                        Rectangle rect = new Rectangle(ptTop.x, ptTop.y, 2, caretH);
+                        _lastKnownCaretRect = rect;
+                        _lastCaretTick = Environment.TickCount;
+                        return rect;
+                    }
+
+                    // Fallback using GetCaretPos on focused handle
+                    POINT localCaret;
+                    if (GetCaretPos(out localCaret) && (localCaret.x > 0 || localCaret.y > 0))
+                    {
+                        if (ClientToScreen(targetHwnd, ref localCaret) && localCaret.x > 0 && localCaret.y > 0)
+                        {
+                            Rectangle rect = new Rectangle(localCaret.x, localCaret.y, 2, 22);
+                            _lastKnownCaretRect = rect;
+                            _lastCaretTick = Environment.TickCount;
+                            return rect;
+                        }
                     }
                 }
+            }
+
+            // If we recently had a valid caret position (within last 3 seconds of typing), keep using it to prevent jumping
+            if (!_lastKnownCaretRect.IsEmpty && (Environment.TickCount - _lastCaretTick) < 3000)
+            {
+                return _lastKnownCaretRect;
             }
 
             // Fallback: mouse cursor position
             POINT mousePt;
             GetCursorPos(out mousePt);
-            return new Point(mousePt.x + 5, mousePt.y + 15);
+            Rectangle fallbackRect = new Rectangle(mousePt.x, mousePt.y, 2, 22);
+            _lastKnownCaretRect = fallbackRect;
+            _lastCaretTick = Environment.TickCount;
+            return fallbackRect;
+        }
+
+        public static Point GetCaretScreenPosition()
+        {
+            Rectangle r = GetCaretRect();
+            return new Point(r.Left, r.Bottom);
         }
     }
 }
