@@ -95,8 +95,9 @@ class BanglishInputController: IMKInputController {
             return false
         }
 
-        // Number keys 1...9 to select candidate
+        // Number keys 1...9 (Top Number Row & Numeric Keypad) to select candidate
         let numberKeyCodes: [UInt16: Int] = [
+            // Top Number Row (1-9)
             18: 0, // 1
             19: 1, // 2
             20: 2, // 3
@@ -105,7 +106,17 @@ class BanglishInputController: IMKInputController {
             22: 5, // 6
             26: 6, // 7
             28: 7, // 8
-            25: 8  // 9
+            25: 8, // 9
+            // Full Keyboard Numeric Keypad (Keypad 1-9)
+            83: 0, // Keypad 1
+            84: 1, // Keypad 2
+            85: 2, // Keypad 3
+            86: 3, // Keypad 4
+            87: 4, // Keypad 5
+            88: 5, // Keypad 6
+            89: 6, // Keypad 7
+            91: 7, // Keypad 8
+            92: 8  // Keypad 9
         ]
         if CandidateWindow.shared.isCandidateWindowVisible,
            !buffer.allSatisfy({ $0.isNumber }),
@@ -195,8 +206,15 @@ class BanglishInputController: IMKInputController {
             return false
         }
 
-        // Left / Right Arrows (123, 124)
-        if keyCode == 123 || keyCode == 124 {
+        // Navigation, Editing, Function & Numpad Operator Keys (Full Keyboard)
+        // Arrows (123, 124), Home (115), End (119), PgUp (116), PgDn (121), Del (117), Ins (114)
+        // Numpad Operators: + (69), - (78), * (67), / (75), . (65), Clear (71), = (81)
+        // Function Keys: F1-F12 (122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111)
+        let isNavOrSpecial = keyCode == 123 || keyCode == 124 || keyCode == 115 || keyCode == 119 ||
+                             keyCode == 116 || keyCode == 121 || keyCode == 117 || keyCode == 114 ||
+                             keyCode == 69 || keyCode == 78 || keyCode == 67 || keyCode == 75 || keyCode == 65 || keyCode == 71 || keyCode == 81 ||
+                             (keyCode >= 96 && keyCode <= 101) || keyCode == 103 || keyCode == 109 || keyCode == 111 || keyCode == 118 || keyCode == 120 || keyCode == 122
+        if isNavOrSpecial {
             if !buffer.isEmpty { commitBuffer(client: client) }
             return false
         }
