@@ -89,6 +89,10 @@ public final class CandidateWindow: NSPanel {
         return isVisible && !candidates.isEmpty
     }
 
+    public var candidateCount: Int {
+        return candidates.count
+    }
+
     public func selectedCandidate() -> String? {
         guard selectedIndex >= 0 && selectedIndex < candidates.count else {
             return candidates.first

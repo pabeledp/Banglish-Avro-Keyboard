@@ -158,8 +158,14 @@ namespace Banglish.Core
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
 
-                // If candidate window is active and user presses number key 1-9
-                if (Buffer.Length > 0 && key >= System.Windows.Forms.Keys.D1 && key <= System.Windows.Forms.Keys.D9)
+                // If candidate window is active and user presses number key 1-9 to select candidate
+                bool isPureDigits = true;
+                for (int bi = 0; bi < Buffer.Length; bi++)
+                {
+                    if (!char.IsDigit(Buffer[bi])) { isPureDigits = false; break; }
+                }
+
+                if (Buffer.Length > 0 && !isPureDigits && _currentCandidates.Count > 1 && key >= System.Windows.Forms.Keys.D1 && key <= System.Windows.Forms.Keys.D9)
                 {
                     bool shift = (System.Windows.Forms.Control.ModifierKeys & System.Windows.Forms.Keys.Shift) != 0;
                     if (!shift)
@@ -247,7 +253,7 @@ namespace Banglish.Core
                         {
                             _currentCandidates = BanglishDictionary.Shared.GetCandidates(Buffer.ToString());
                             _selectedCandidateIndex = 0;
-                            string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : "";
+                            string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : BanglishEngine.Shared.Transliterate(Buffer.ToString());
 
                             ReplaceComposedText(prevCount, newBangla);
                             _lastComposed = newBangla;
@@ -291,7 +297,7 @@ namespace Banglish.Core
 
                     _currentCandidates = BanglishDictionary.Shared.GetCandidates(Buffer.ToString());
                     _selectedCandidateIndex = 0;
-                    string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : "";
+                    string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : BanglishEngine.Shared.Transliterate(Buffer.ToString());
 
                     ReplaceComposedText(prevCount, newBangla);
                     _lastComposed = newBangla;

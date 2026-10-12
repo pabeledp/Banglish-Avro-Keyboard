@@ -223,6 +223,17 @@ namespace Banglish.Core
                 return new List<string> { "।", "." };
             }
 
+            // Pure numbers (0-9) do not need floating candidate popups
+            bool allDigits = true;
+            for (int i = 0; i < rawInput.Length; i++)
+            {
+                if (!char.IsDigit(rawInput[i])) { allDigits = false; break; }
+            }
+            if (allDigits)
+            {
+                return new List<string>();
+            }
+
             string preferred = null;
             lock (_lock)
             {

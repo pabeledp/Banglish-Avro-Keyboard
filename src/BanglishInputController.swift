@@ -96,8 +96,10 @@ class BanglishInputController: IMKInputController {
             25: 8  // 9
         ]
         if CandidateWindow.shared.isCandidateWindowVisible,
+           !buffer.allSatisfy({ $0.isNumber }),
            !modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option), !modifiers.contains(.shift),
-           let idx = numberKeyCodes[keyCode] {
+           let idx = numberKeyCodes[keyCode],
+           idx < CandidateWindow.shared.candidateCount {
             CandidateWindow.shared.selectIndex(idx)
             return true
         }
@@ -265,7 +267,18 @@ class BanglishInputController: IMKInputController {
             return
         }
 
+        // Pure numbers (e.g. 1, 12, 1234567890) should never show floating candidate window
+        if buffer.allSatisfy({ $0.isNumber }) {
+            CandidateWindow.shared.hide()
+            return
+        }
+
         let candidates = BanglishDictionary.shared.candidates(for: buffer)
+        guard !candidates.isEmpty else {
+            CandidateWindow.shared.hide()
+            return
+        }
+
         let rect = cursorRect(for: client)
 
         CandidateWindow.shared.show(candidates: candidates, near: rect) { [weak self, weak client] chosenCandidate in

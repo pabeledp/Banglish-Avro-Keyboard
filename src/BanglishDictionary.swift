@@ -167,6 +167,11 @@ public final class BanglishDictionary {
     public func candidates(for rawInput: String) -> [String] {
         guard !rawInput.isEmpty else { return [] }
 
+        // Numbers (0-9) do not need floating candidate popups
+        if rawInput.allSatisfy({ $0.isNumber }) {
+            return []
+        }
+
         // Special handling for full stop / dot (.)
         if rawInput == "." {
             return ["।", "."]
