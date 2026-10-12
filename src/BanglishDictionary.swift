@@ -7,6 +7,7 @@ public final class BanglishDictionary {
     private var words: Set<String> = []
     private var autodict: [String: String] = [:]
     private var isLoaded = false
+    private let lock = NSLock()
     private let queue = DispatchQueue(label: "org.banglish.dictionary.loader", qos: .userInitiated)
 
     // Common seed words & juktoborno combinations for instant fallback
@@ -66,17 +67,25 @@ public final class BanglishDictionary {
     /// Load full dictionary from app bundle or resources
     public func loadDictionary() {
         queue.async { [weak self] in
-            guard let self = self, !self.isLoaded else { return }
+            guard let self = self else { return }
+            self.lock.lock()
+            if self.isLoaded {
+                self.lock.unlock()
+                return
+            }
+            self.lock.unlock()
 
             var wordSet = self.seedWords
             var autoMap = self.seedAutodict
 
-            // Check bundle path for words.txt
+            // Check bundle and local paths for words.txt
             let possibleWordsUrls = [
                 Bundle.main.url(forResource: "words", withExtension: "txt"),
                 Bundle.main.resourceURL?.appendingPathComponent("words.txt"),
+                Bundle(for: BanglishDictionary.self).url(forResource: "words", withExtension: "txt"),
                 URL(fileURLWithPath: "/Library/Input Methods/Banglish.app/Contents/Resources/words.txt"),
                 URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Input Methods/Banglish.app/Contents/Resources/words.txt"),
+                URL(fileURLWithPath: "Resources/words.txt"),
                 URL(fileURLWithPath: "/Users/rmacstudio2/Documents/Banglish/Resources/words.txt")
             ].compactMap { $0 }
 
@@ -94,12 +103,14 @@ public final class BanglishDictionary {
                 }
             }
 
-            // Check bundle path for autodict.txt
+            // Check bundle and local paths for autodict.txt
             let possibleAutoUrls = [
                 Bundle.main.url(forResource: "autodict", withExtension: "txt"),
                 Bundle.main.resourceURL?.appendingPathComponent("autodict.txt"),
+                Bundle(for: BanglishDictionary.self).url(forResource: "autodict", withExtension: "txt"),
                 URL(fileURLWithPath: "/Library/Input Methods/Banglish.app/Contents/Resources/autodict.txt"),
                 URL(fileURLWithPath: "\(NSHomeDirectory())/Library/Input Methods/Banglish.app/Contents/Resources/autodict.txt"),
+                URL(fileURLWithPath: "Resources/autodict.txt"),
                 URL(fileURLWithPath: "/Users/rmacstudio2/Documents/Banglish/Resources/autodict.txt")
             ].compactMap { $0 }
 
@@ -109,7 +120,7 @@ public final class BanglishDictionary {
                         content.enumerateLines { line, _ in
                             let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
                             if parts.count == 2 {
-                                autoMap[parts[0].lowercased()] = parts[1]
+                                autoMap[parts[0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()] = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
                             }
                         }
                         break
@@ -117,17 +128,28 @@ public final class BanglishDictionary {
                 }
             }
 
-            DispatchQueue.main.async {
-                self.words = wordSet
-                self.autodict = autoMap
-                self.isLoaded = true
-            }
+            self.lock.lock()
+            self.words = wordSet
+            self.autodict = autoMap
+            self.isLoaded = true
+            self.lock.unlock()
         }
     }
 
     /// Check if word is valid in dictionary
     public func contains(_ word: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
         return words.contains(word)
+    }
+
+    private static func replacePrefixScalars(_ str: String, prefix: [UInt32], replacement: [UInt32]) -> String? {
+        let sc = Array(str.unicodeScalars.map { $0.value })
+        if sc.starts(with: prefix) {
+            let newSc = replacement + sc.dropFirst(prefix.count)
+            return String(String.UnicodeScalarView(newSc.compactMap { UnicodeScalar($0) }))
+        }
+        return nil
     }
 
     @inline(__always)
@@ -150,8 +172,11 @@ public final class BanglishDictionary {
             return ["।", "."]
         }
 
-        let lower = rawInput.lowercased()
-        let preferred = autodict[lower]
+        let lower = rawInput.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var preferred: String? = nil
+        lock.lock()
+        preferred = autodict[lower]
+        lock.unlock()
 
         let primary = BanglishEngine.shared.transliterate(rawInput)
         guard !primary.isEmpty else {
@@ -334,6 +359,26 @@ public final class BanglishDictionary {
             if w.contains("ষ্প") { variants.insert(w.replacingOccurrences(of: "ষ্প", with: "স্প")) }
             if w.contains("ঙ্ক") { variants.insert(w.replacingOccurrences(of: "ঙ্ক", with: "ংক")) }
             if w.contains("ংক") { variants.insert(w.replacingOccurrences(of: "ংক", with: "ঙ্ক")) }
+            if w.contains("বাঙ্ক") {
+                variants.insert(w.replacingOccurrences(of: "বাঙ্ক", with: "ব্যাংক"))
+                variants.insert(w.replacingOccurrences(of: "বাঙ্ক", with: "ব্যাঙ্ক"))
+            }
+            if w.contains("বাংক") {
+                variants.insert(w.replacingOccurrences(of: "বাংক", with: "ব্যাংক"))
+                variants.insert(w.replacingOccurrences(of: "বাংক", with: "ব্যাঙ্ক"))
+            }
+            if w.contains("টাঙ্ক") {
+                variants.insert(w.replacingOccurrences(of: "টাঙ্ক", with: "ট্যাংক"))
+                variants.insert(w.replacingOccurrences(of: "টাঙ্ক", with: "ট্যাঙ্ক"))
+            }
+            if w.contains("টাংক") {
+                variants.insert(w.replacingOccurrences(of: "টাংক", with: "ট্যাংক"))
+                variants.insert(w.replacingOccurrences(of: "টাংক", with: "ট্যাঙ্ক"))
+            }
+            if w.contains("রাঙ্ক") { variants.insert(w.replacingOccurrences(of: "রাঙ্ক", with: "র‍্যাংক")) }
+            if w.contains("রাংক") { variants.insert(w.replacingOccurrences(of: "রাংক", with: "র‍্যাংক")) }
+            if w.contains("লাঙ্ক") { variants.insert(w.replacingOccurrences(of: "লাঙ্ক", with: "লিংক")) }
+            if w.contains("লাংক") { variants.insert(w.replacingOccurrences(of: "লাংক", with: "লিংক")) }
             if w.contains("জ্ঞ") { variants.insert(w.replacingOccurrences(of: "জ্ঞ", with: "গ্য")) }
             if w.contains("ক্ষ") { variants.insert(w.replacingOccurrences(of: "ক্ষ", with: "খ")) }
         }
@@ -353,6 +398,7 @@ public final class BanglishDictionary {
             if w.contains("ত্ব") { variants.insert(w.replacingOccurrences(of: "ত্ব", with: "তও")) }
             if w.contains("তওার") { variants.insert(w.replacingOccurrences(of: "তওার", with: "টওয়্যার")) }
             if w.contains("ত্বার") { variants.insert(w.replacingOccurrences(of: "ত্বার", with: "টওয়্যার")) }
+            if w.contains("ত্বারে") { variants.insert(w.replacingOccurrences(of: "ত্বারে", with: "টওয়্যার")) }
             if w.contains("ওার") { variants.insert(w.replacingOccurrences(of: "ওার", with: "ওয়্যার")) }
             if w.contains("ও্যার") { variants.insert(w.replacingOccurrences(of: "ও্যার", with: "ওয়্যার")) }
             if w.contains("অ্যার") { variants.insert(w.replacingOccurrences(of: "অ্যার", with: "ওয়্যার")) }
@@ -360,37 +406,49 @@ public final class BanglishDictionary {
             if w.contains("ফত") { variants.insert(w.replacingOccurrences(of: "ফত", with: "ফট")) }
         }
 
-        // Rule Q: English loanwords with short 'a' (বা -> ব্যা, কা -> ক্যা, টা -> ট্যা, etc.) and 'nk' (বাঙ্ক -> ব্যাংক / ব্যাঙ্ক)
+        // Also check phonetic transliteration variations of rawInput for 'y' and 'w'
+        if rawInput.contains("y") {
+            // 'y' as 'Y' (forces য়)
+            let transY = BanglishEngine.shared.transliterate(rawInput.replacingOccurrences(of: "y", with: "Y"))
+            if !transY.isEmpty { variants.insert(transY) }
+            // 'y' as 'Z' (forces ্য)
+            let transZ = BanglishEngine.shared.transliterate(rawInput.replacingOccurrences(of: "y", with: "Z"))
+            if !transZ.isEmpty { variants.insert(transZ) }
+        }
+        if rawInput.contains("war") || rawInput.contains("wer") || rawInput.contains("ware") {
+            let modInput = rawInput
+                .replacingOccurrences(of: "software", with: "softwZar")
+                .replacingOccurrences(of: "softowar", with: "softwZar")
+                .replacingOccurrences(of: "softwer", with: "softwZar")
+                .replacingOccurrences(of: "ware", with: "wZar")
+            let transW = BanglishEngine.shared.transliterate(modInput)
+            if !transW.isEmpty {
+                variants.insert(transW)
+                if transW.contains("ফত") {
+                    variants.insert(transW.replacingOccurrences(of: "ফত", with: "ফট"))
+                }
+            }
+        }
+
+        // Rule Q: English loanwords with short 'a' (বা -> ব্যা, কা -> ক্যা, টা -> ট্যা, etc.)
+        let prefixReplacements: [([UInt32], [UInt32], [String])] = [
+            ([0x09AC, 0x09BE], [0x09AC, 0x09CD, 0x09AF, 0x09BE], ["বাংলাদেশ", "বাংলা", "বাঙলা", "বাগান", "বাতাস", "বাড়ি", "বাড়ি", "বাপ"]),
+            ([0x0995, 0x09BE], [0x0995, 0x09CD, 0x09AF, 0x09BE], ["কাজ", "কারণ", "কারন", "কালো", "কাল", "কাছে", "কাগজ"]),
+            ([0x099F, 0x09BE], [0x099F, 0x09CD, 0x09AF, 0x09BE], ["টাকা", "টাক"]),
+            ([0x0997, 0x09BE], [0x0997, 0x09CD, 0x09AF, 0x09BE], ["গান", "গাছ", "গায়ে", "গা"]),
+            ([0x09AB, 0x09BE], [0x09AB, 0x09CD, 0x09AF, 0x09BE], [])
+        ]
+
         let curQ = Array(variants) + [primary]
         for w in curQ {
-            if w.contains("বাঙ্ক") {
-                variants.insert(w.replacingOccurrences(of: "বাঙ্ক", with: "ব্যাংক"))
-                variants.insert(w.replacingOccurrences(of: "বাঙ্ক", with: "ব্যাঙ্ক"))
-            }
-            if w.contains("টাঙ্ক") {
-                variants.insert(w.replacingOccurrences(of: "টাঙ্ক", with: "ট্যাংক"))
-                variants.insert(w.replacingOccurrences(of: "টাঙ্ক", with: "ট্যাঙ্ক"))
-            }
-            if w.contains("রাঙ্ক") {
-                variants.insert(w.replacingOccurrences(of: "রাঙ্ক", with: "র‍্যাংক"))
-            }
-            if w.contains("লাঙ্ক") {
-                variants.insert(w.replacingOccurrences(of: "লাঙ্ক", with: "লিংক"))
-            }
-            if w.hasPrefix("বা") && !w.hasPrefix("বাংলাদেশ") && !w.hasPrefix("বাংলা") {
-                variants.insert("ব্যা" + String(w.dropFirst(2)))
-            }
-            if w.hasPrefix("কা") && !w.hasPrefix("কাজ") && !w.hasPrefix("কারণ") && !w.hasPrefix("কালো") {
-                variants.insert("ক্যা" + String(w.dropFirst(2)))
-            }
-            if w.hasPrefix("টা") && !w.hasPrefix("টাকা") {
-                variants.insert("ট্যা" + String(w.dropFirst(2)))
-            }
-            if w.hasPrefix("ফা") {
-                variants.insert("ফ্যা" + String(w.dropFirst(2)))
-            }
-            if w.hasPrefix("গা") && !w.hasPrefix("গান") && !w.hasPrefix("গাছ") {
-                variants.insert("গ্যা" + String(w.dropFirst(2)))
+            for (pfx, repl, exceptions) in prefixReplacements {
+                var isException = false
+                for ex in exceptions {
+                    if w.hasPrefix(ex) { isException = true; break }
+                }
+                if !isException, let mod = Self.replacePrefixScalars(w, prefix: pfx, replacement: repl) {
+                    variants.insert(mod)
+                }
             }
         }
 
@@ -452,7 +510,7 @@ public final class BanglishDictionary {
             "ন্ড": "ঁড"
         ]
 
-        var cbBaseWords = Array(variants) + [primary]
+        let cbBaseWords = Array(variants) + [primary]
 
         for w in cbBaseWords {
             // 1. Insert ঁ after vowel signs or independent vowels (single-site substitution)
@@ -502,17 +560,23 @@ public final class BanglishDictionary {
         var otherConfirmed: [String] = []
         var others: [String] = []
 
+        lock.lock()
         for v in variants {
+            let hasCB = v.unicodeScalars.contains { $0.value == 0x0981 }
             if words.contains(v) {
-                if v.unicodeScalars.contains(where: { $0.value == 0x0981 }) {
+                if hasCB {
                     cbConfirmed.append(v)
                 } else {
                     otherConfirmed.append(v)
                 }
             } else {
-                others.append(v)
+                // Do not allow unconfirmed fabricated Chandrabindu words
+                if !hasCB {
+                    others.append(v)
+                }
             }
         }
+        lock.unlock()
 
         // Add confirmed Chandrabindu words first (after primary)
         for v in cbConfirmed {
@@ -526,10 +590,9 @@ public final class BanglishDictionary {
             addCandidate(v)
         }
 
-        // If list still has room, add remaining phonetic variants (skip unconfirmed chandrabindu)
+        // If list still has room, add remaining phonetic variants
         for v in others {
             if result.count >= 7 { break }
-            if v.contains("ঁ") && !words.contains(v) { continue }
             addCandidate(v)
         }
 

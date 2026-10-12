@@ -21,7 +21,7 @@ class BanglishInputController: IMKInputController {
             lastClient = client
             return client
         }
-        if let client = self.client() as? (any IMKTextInput) {
+        if let client = self.client() {
             lastClient = client
             return client
         }
@@ -105,12 +105,18 @@ class BanglishInputController: IMKInputController {
         // Up Arrow (keycode 126): Move candidate selection up
         if keyCode == 126 && CandidateWindow.shared.isCandidateWindowVisible {
             CandidateWindow.shared.selectPrevious()
+            if let chosen = CandidateWindow.shared.selectedCandidate() {
+                updateMarkedText(client: client, customText: chosen)
+            }
             return true
         }
 
         // Down Arrow (keycode 125): Move candidate selection down
         if keyCode == 125 && CandidateWindow.shared.isCandidateWindowVisible {
             CandidateWindow.shared.selectNext()
+            if let chosen = CandidateWindow.shared.selectedCandidate() {
+                updateMarkedText(client: client, customText: chosen)
+            }
             return true
         }
 
@@ -118,6 +124,9 @@ class BanglishInputController: IMKInputController {
         if keyCode == 48 {
             if CandidateWindow.shared.isCandidateWindowVisible {
                 CandidateWindow.shared.selectNext()
+                if let chosen = CandidateWindow.shared.selectedCandidate() {
+                    updateMarkedText(client: client, customText: chosen)
+                }
                 return true
             }
             if !buffer.isEmpty { commitBuffer(client: client) }
@@ -208,13 +217,22 @@ class BanglishInputController: IMKInputController {
     }
 
     // MARK: - Marked Text & Buffer Management
-    private func updateMarkedText(client: any IMKTextInput) {
+    private func updateMarkedText(client: any IMKTextInput, customText: String? = nil) {
         if buffer.isEmpty {
             clearMarkedText(client: client)
             return
         }
 
-        let converted = (buffer == ".") ? "।" : engine.transliterate(buffer)
+        let converted: String
+        if let custom = customText {
+            converted = custom
+        } else if buffer == "." {
+            converted = "।"
+        } else {
+            let candidates = BanglishDictionary.shared.candidates(for: buffer)
+            converted = candidates.first ?? engine.transliterate(buffer)
+        }
+
         let attrString = NSMutableAttributedString(
             string: converted,
             attributes: [
