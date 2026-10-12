@@ -201,26 +201,55 @@ namespace Banglish.UI
         public void PositionNearCaret()
         {
             Rectangle caretRect = Win32Caret.GetCaretRect();
-            Point anchorPt = new Point(caretRect.Left, caretRect.Bottom);
-            Rectangle screen = Screen.FromPoint(anchorPt).WorkingArea;
+            Rectangle screen = Screen.FromPoint(new Point(caretRect.Left, caretRect.Top)).WorkingArea;
 
             int x = caretRect.Left;
-            const int safeGap = 12; // Clean 12px safe distance so it NEVER overlaps typed text
-            int y = caretRect.Bottom + safeGap; // Placed below current text line
+            int formW = this.Width;
+            int formH = this.Height;
 
-            // Flip above the text line if there isn't enough vertical room at the bottom
-            if (y + this.Height > screen.Bottom)
+            // Natural 6px distance directly next to the typing bar
+            const int gap = 6;
+
+            // Calculate free space below and above the typing bar
+            int spaceBelow = screen.Bottom - (caretRect.Bottom + gap);
+            int spaceAbove = (caretRect.Top - gap) - screen.Top;
+
+            int y;
+            if (spaceBelow >= formH)
             {
-                y = caretRect.Top - this.Height - safeGap;
+                // Plenty of room below typing bar
+                y = caretRect.Bottom + gap;
+            }
+            else if (spaceAbove >= formH)
+            {
+                // Tight below, but plenty of room above typing bar -> flip above
+                y = caretRect.Top - formH - gap;
+            }
+            else
+            {
+                // Choose whichever side has MORE free space
+                y = (spaceBelow >= spaceAbove) ? (caretRect.Bottom + gap) : (caretRect.Top - formH - gap);
             }
 
-            // Boundary checks
-            if (x + this.Width > screen.Right - 10)
+            // Keep horizontally attached directly to typing caret, clamped safely inside screen
+            if (x + formW > screen.Right - 8)
             {
-                x = screen.Right - this.Width - 10;
+                x = screen.Right - formW - 8;
             }
-            if (x < screen.Left + 8) x = screen.Left + 8;
-            if (y < screen.Top + 8) y = screen.Top + 8;
+            if (x < screen.Left + 8)
+            {
+                x = screen.Left + 8;
+            }
+
+            // Vertical screen clamp
+            if (y + formH > screen.Bottom - 4)
+            {
+                y = screen.Bottom - formH - 4;
+            }
+            if (y < screen.Top + 4)
+            {
+                y = screen.Top + 4;
+            }
 
             this.Location = new Point(x, y);
         }
