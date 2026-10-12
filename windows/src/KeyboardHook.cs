@@ -158,6 +158,21 @@ namespace Banglish.Core
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
 
+                // Pass through all system shortcut combinations (e.g. Ctrl+C Copy, Ctrl+V Paste, Ctrl+X Cut, Ctrl+A, Ctrl+Z, Win+V, Alt shortcuts)
+                bool winPressed = (GetKeyState(0x5B /*VK_LWIN*/) & 0x8000) != 0 || (GetKeyState(0x5C /*VK_RWIN*/) & 0x8000) != 0;
+                if (ctrlPressed || altPressed || winPressed)
+                {
+                    if (Buffer.Length > 0)
+                    {
+                        Buffer.Clear();
+                        _lastComposed = "";
+                        _currentCandidates.Clear();
+                        _selectedCandidateIndex = 0;
+                        TriggerCandidatesUpdate();
+                    }
+                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                }
+
                 // If candidate window is active and user presses number key 1-9 to select candidate
                 bool isPureDigits = true;
                 for (int bi = 0; bi < Buffer.Length; bi++)

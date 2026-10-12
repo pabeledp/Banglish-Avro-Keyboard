@@ -66,6 +66,13 @@ class BanglishInputController: IMKInputController {
         let keyCode = event.keyCode
         let char = event.characters?.first ?? event.charactersIgnoringModifiers?.first
 
+        // Sync buffer with client marked state (clears stale buffer if user clicked away or selected text)
+        let marked = client.markedRange()
+        if marked.location == NSNotFound && !buffer.isEmpty {
+            buffer.removeAll()
+            CandidateWindow.shared.hide()
+        }
+
         // Hotkey: Option + Space toggles Bangla/English
         if modifiers.contains(.option) && keyCode == 49 {
             if !buffer.isEmpty { commitBuffer(client: client) }
@@ -77,9 +84,26 @@ class BanglishInputController: IMKInputController {
             return false
         }
 
-        // Pass through events with Cmd or Ctrl
-        if modifiers.contains(.command) || modifiers.contains(.control) {
-            if !buffer.isEmpty { commitBuffer(client: client) }
+        // Pass through events with Cmd or Ctrl (e.g. Cmd+C Copy, Cmd+V Paste, Cmd+X Cut, Cmd+A Select All, Cmd+Z Undo, etc.)
+        let isCommand = modifiers.contains(.command) ||
+                        modifiers.intersection(.deviceIndependentFlagsMask).contains(.command) ||
+                        (modifiers.rawValue & NSEvent.ModifierFlags.command.rawValue) != 0
+        let isControl = modifiers.contains(.control) ||
+                        modifiers.intersection(.deviceIndependentFlagsMask).contains(.control) ||
+                        (modifiers.rawValue & NSEvent.ModifierFlags.control.rawValue) != 0
+        let isOption = modifiers.contains(.option) ||
+                       modifiers.intersection(.deviceIndependentFlagsMask).contains(.option) ||
+                       (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
+
+        if isCommand || isControl || (isOption && keyCode != 49) {
+            if !buffer.isEmpty {
+                if marked.location != NSNotFound && marked.length > 0 {
+                    commitBuffer(client: client)
+                } else {
+                    buffer.removeAll()
+                    CandidateWindow.shared.hide()
+                }
+            }
             return false
         }
 
