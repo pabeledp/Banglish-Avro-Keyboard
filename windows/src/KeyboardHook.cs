@@ -303,6 +303,30 @@ namespace Banglish.Core
                     return CallNextHookEx(_hookID, nCode, wParam, lParam);
                 }
 
+                // Direct Bengali digit typing (0-9)
+                bool isDigitKey = (key >= System.Windows.Forms.Keys.D0 && key <= System.Windows.Forms.Keys.D9) ||
+                                  (key >= System.Windows.Forms.Keys.NumPad0 && key <= System.Windows.Forms.Keys.NumPad9);
+                bool hasShift = (System.Windows.Forms.Control.ModifierKeys & System.Windows.Forms.Keys.Shift) != 0;
+                if (isDigitKey && !hasShift)
+                {
+                    // If buffer had previous composed text, finalize it cleanly
+                    if (Buffer.Length > 0)
+                    {
+                        Buffer.Clear();
+                        _lastComposed = "";
+                        _currentCandidates.Clear();
+                        _selectedCandidateIndex = 0;
+                        TriggerCandidatesUpdate();
+                    }
+
+                    int digitVal = (key >= System.Windows.Forms.Keys.NumPad0) 
+                        ? (key - System.Windows.Forms.Keys.NumPad0) 
+                        : (key - System.Windows.Forms.Keys.D0);
+                    char banglaDigit = (char)('০' + digitVal);
+                    SendSingleChar(banglaDigit);
+                    return (IntPtr)1;
+                }
+
                 // Convert Key to Character
                 char ch = GetCharFromKey(key);
                 if (ch != '\0')

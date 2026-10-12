@@ -66,13 +66,6 @@ class BanglishInputController: IMKInputController {
         let keyCode = event.keyCode
         let char = event.characters?.first ?? event.charactersIgnoringModifiers?.first
 
-        // Sync buffer with client marked state (clears stale buffer if user clicked away or selected text)
-        let marked = client.markedRange()
-        if marked.location == NSNotFound && !buffer.isEmpty {
-            buffer.removeAll()
-            CandidateWindow.shared.hide()
-        }
-
         // Hotkey: Option + Space toggles Bangla/English
         if modifiers.contains(.option) && keyCode == 49 {
             if !buffer.isEmpty { commitBuffer(client: client) }
@@ -97,12 +90,7 @@ class BanglishInputController: IMKInputController {
 
         if isCommand || isControl || (isOption && keyCode != 49) {
             if !buffer.isEmpty {
-                if marked.location != NSNotFound && marked.length > 0 {
-                    commitBuffer(client: client)
-                } else {
-                    buffer.removeAll()
-                    CandidateWindow.shared.hide()
-                }
+                commitBuffer(client: client)
             }
             return false
         }
@@ -125,6 +113,7 @@ class BanglishInputController: IMKInputController {
            let idx = numberKeyCodes[keyCode],
            idx < CandidateWindow.shared.candidateCount {
             CandidateWindow.shared.selectIndex(idx)
+            commitBuffer(client: client)
             return true
         }
 
@@ -228,6 +217,22 @@ class BanglishInputController: IMKInputController {
             buffer = "."
             updateMarkedText(client: client)
             updateCandidates(client: client)
+            return true
+        }
+
+        // Digits 0...9 direct insertion (Bengali numerals)
+        // Directly insert Bengali numerals to avoid composition / marked-text replacement
+        // bugs in non-standard editors like Adobe After Effects, Illustrator, Photoshop, etc.
+        let banglaDigits: [Character: String] = [
+            "0": "০", "1": "১", "2": "২", "3": "৩", "4": "৪",
+            "5": "৫", "6": "৬", "7": "৭", "8": "৮", "9": "৯"
+        ]
+        if let char = char, let bDigit = banglaDigits[char],
+           !modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option), !modifiers.contains(.shift) {
+            if !buffer.isEmpty {
+                commitBuffer(client: client)
+            }
+            client.insertText(bDigit as NSString, replacementRange: Self.emptyRange)
             return true
         }
 

@@ -23,10 +23,12 @@ mkdir -p "${APP_DIR}/Contents/Resources/English.lproj"
 # 1. Compile native Swift binary
 echo "-> Compiling Swift sources..."
 SDK_PATH="/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
+mkdir -p "${BUILD_DIR}/ModuleCache"
 /Library/Developer/CommandLineTools/usr/bin/swiftc \
     -O \
     -sdk "${SDK_PATH}" \
     -target arm64-apple-macos12.0 \
+    -module-cache-path "${BUILD_DIR}/ModuleCache" \
     -framework Cocoa \
     -framework InputMethodKit \
     "${PROJECT_DIR}/src/AvroData.swift" \
