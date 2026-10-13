@@ -28,9 +28,12 @@ class BanglishInputController: IMKInputController {
         return lastClient
     }
 
+    private static var fnKeyDownTime: TimeInterval = 0
+    private static var fnUsedWithOtherKey = false
+
     // MARK: - Server Lifecycle
     override func recognizedEvents(_ sender: Any!) -> Int {
-        return Int(NSEvent.EventTypeMask.keyDown.rawValue)
+        return Int(NSEvent.EventTypeMask.keyDown.rawValue | NSEvent.EventTypeMask.flagsChanged.rawValue)
     }
 
     override func activateServer(_ sender: Any!) {
@@ -57,27 +60,51 @@ class BanglishInputController: IMKInputController {
     // MARK: - Native Event Handling (Raw NSEvents)
     override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
         guard let event = event,
-              event.type == .keyDown,
               let client = currentClient(sender: sender) else {
             return false
+        }
+
+        // 1. Dedicated Hardware Fn / Globe key (keycode 63) on Mac keyboards
+        if event.type == .flagsChanged {
+            if event.keyCode == 63 {
+                let isFnDown = event.modifierFlags.contains(.function) ||
+                               (event.modifierFlags.rawValue & NSEvent.ModifierFlags.function.rawValue) != 0
+                if isFnDown {
+                    Self.fnKeyDownTime = CACurrentMediaTime()
+                    Self.fnUsedWithOtherKey = false
+                } else {
+                    let elapsed = CACurrentMediaTime() - Self.fnKeyDownTime
+                    // Dedicated tap (released within 500ms without combination)
+                    if !Self.fnUsedWithOtherKey && elapsed > 0.01 && elapsed < 0.6 {
+                        if !buffer.isEmpty { commitBuffer(client: client) }
+                        BanglishInputController.isBanglaMode.toggle()
+                    }
+                }
+            }
+            return false // Pass flagsChanged through so system shortcuts and macOS input switching are never blocked
+        }
+
+        guard event.type == .keyDown else {
+            return false
+        }
+
+        // If Fn key was held down while pressing a key, mark it as a combination key
+        if Self.fnKeyDownTime > 0 {
+            Self.fnUsedWithOtherKey = true
         }
 
         let modifiers = event.modifierFlags
         let keyCode = event.keyCode
         let char = event.characters?.first ?? event.charactersIgnoringModifiers?.first
 
-        // Hotkey: Option + Space toggles Bangla/English
-        if modifiers.contains(.option) && keyCode == 49 {
+        // Dedicated hardware Fn / Globe key (keycode 63) keyDown fallback
+        if keyCode == 63 {
             if !buffer.isEmpty { commitBuffer(client: client) }
             BanglishInputController.isBanglaMode.toggle()
             return true
         }
 
-        if !BanglishInputController.isBanglaMode {
-            return false
-        }
-
-        // Pass through events with Cmd or Ctrl (e.g. Cmd+C Copy, Cmd+V Paste, Cmd+X Cut, Cmd+A Select All, Cmd+Z Undo, etc.)
+        // Check modifier keys cleanly
         let isCommand = modifiers.contains(.command) ||
                         modifiers.intersection(.deviceIndependentFlagsMask).contains(.command) ||
                         (modifiers.rawValue & NSEvent.ModifierFlags.command.rawValue) != 0
@@ -88,10 +115,36 @@ class BanglishInputController: IMKInputController {
                        modifiers.intersection(.deviceIndependentFlagsMask).contains(.option) ||
                        (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
 
-        if isCommand || isControl || (isOption && keyCode != 49) {
+        // Universal Language Toggle Shortcuts:
+        // 1) Option + Space (⌥ + Space)
+        // 2) Control + Space (^ + Space - default macOS input source shortcut)
+        let isToggleShortcut = (isOption || isControl) && !isCommand && keyCode == 49
+        if isToggleShortcut {
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            BanglishInputController.isBanglaMode.toggle()
+            return true
+        }
+
+        // Pass through ANY command shortcuts (Cmd+C, Cmd+V, Cmd+A, Cmd+Z, Cmd+S, Cmd+X, Cmd+Q, Cmd+W, etc.)
+        // Never eat or corrupt user clipboard / editor actions!
+        if isCommand {
             if !buffer.isEmpty {
-                commitBuffer(client: client)
+                buffer.removeAll()
+                CandidateWindow.shared.hide()
             }
+            return false
+        }
+
+        // Pass through Control or Option application shortcuts (e.g. Ctrl+Tab, Option+Arrow, etc. where keyCode != 49)
+        if isControl || (isOption && keyCode != 49) {
+            if !buffer.isEmpty {
+                buffer.removeAll()
+                CandidateWindow.shared.hide()
+            }
+            return false
+        }
+
+        if !BanglishInputController.isBanglaMode {
             return false
         }
 
