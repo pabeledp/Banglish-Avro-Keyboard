@@ -55,18 +55,6 @@ namespace Banglish.Core
         [DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT lpPoint);
 
-        [DllImport("user32.dll")]
-        private static extern bool GetCaretPos(out POINT lpPoint);
-
-        [DllImport("user32.dll")]
-        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
-
-        [DllImport("kernel32.dll")]
-        private static extern uint GetCurrentThreadId();
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr GetFocus();
-
         private static Rectangle _lastKnownCaretRect = Rectangle.Empty;
         private static long _lastCaretTick = 0;
 
@@ -123,36 +111,25 @@ namespace Banglish.Core
                 }
             }
 
-            // 2. Fallback: AttachThreadInput to focused control
-            uint curThreadId = GetCurrentThreadId();
-            if (fgThreadId != 0 && fgThreadId != curThreadId && AttachThreadInput(curThreadId, fgThreadId, true))
+            // 2. Fallback: Check system-wide active thread caret without queue attachment
+            GUITHREADINFO globalGui = new GUITHREADINFO();
+            globalGui.cbSize = Marshal.SizeOf(globalGui);
+            if (GetGUIThreadInfo(0, ref globalGui) && globalGui.hwndCaret != IntPtr.Zero)
             {
-                try
+                int caretH = globalGui.rcCaret.Bottom - globalGui.rcCaret.Top;
+                if (caretH <= 0 || caretH > 80) caretH = 22;
+
+                POINT p = new POINT { x = globalGui.rcCaret.Left, y = globalGui.rcCaret.Top };
+                if (ClientToScreen(globalGui.hwndCaret, ref p))
                 {
-                    IntPtr focus = GetFocus();
-                    if (focus != IntPtr.Zero)
+                    if (p.x >= fgRect.Left - 50 && p.x <= fgRect.Right + 50 &&
+                        p.y >= fgRect.Top - 50 && p.y <= fgRect.Bottom + 50)
                     {
-                        POINT p;
-                        if (GetCaretPos(out p) && (p.x > 0 || p.y > 0))
-                        {
-                            if (ClientToScreen(focus, ref p))
-                            {
-                                if (p.x >= fgRect.Left - 50 && p.x <= fgRect.Right + 50 &&
-                                    p.y >= fgRect.Top - 50 && p.y <= fgRect.Bottom + 50)
-                                {
-                                    Rectangle rect = new Rectangle(p.x, p.y, 2, 22);
-                                    _lastKnownCaretRect = rect;
-                                    _lastCaretTick = Environment.TickCount;
-                                    return rect;
-                                }
-                            }
-                        }
+                        Rectangle rect = new Rectangle(p.x, p.y, 2, caretH);
+                        _lastKnownCaretRect = rect;
+                        _lastCaretTick = Environment.TickCount;
+                        return rect;
                     }
-                }
-                catch {}
-                finally
-                {
-                    AttachThreadInput(curThreadId, fgThreadId, false);
                 }
             }
 

@@ -17,6 +17,7 @@ namespace Banglish.Core
 
         public delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
 
+        private static HookProc _staticProc;
         private HookProc _proc;
         private IntPtr _hookID = IntPtr.Zero;
 
@@ -37,6 +38,7 @@ namespace Banglish.Core
             IsEnabled = true;
             Buffer = new StringBuilder();
             _proc = HookCallback;
+            _staticProc = _proc;
         }
 
         public void Start()
@@ -125,9 +127,11 @@ namespace Banglish.Core
 
         private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
-            if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
+            try
             {
-                KBDLLHOOKSTRUCT hookStruct = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
+                if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
+                {
+                    KBDLLHOOKSTRUCT hookStruct = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
 
                 // If key is injected by our own SendInput, pass it through immediately
                 if ((hookStruct.flags & 0x10) != 0 || hookStruct.dwExtraInfo == (UIntPtr)0xBA991158 || (long)hookStruct.dwExtraInfo == 0xBA991158L)
@@ -422,6 +426,11 @@ namespace Banglish.Core
 
             return CallNextHookEx(_hookID, nCode, wParam, lParam);
         }
+        catch
+        {
+            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+    }
 
         private char GetCharFromKey(System.Windows.Forms.Keys key)
         {
@@ -470,163 +479,80 @@ namespace Banglish.Core
 
         public static void ReplaceComposedText(string oldText, string newText)
         {
-            if (oldText == null) oldText = "";
-            if (newText == null) newText = "";
-            if (oldText == newText) return;
-
-            // Differential replacement: compute common prefix so unchanged characters are never deleted/re-rendered!
-            int commonPrefixLen = 0;
-            int minLen = Math.Min(oldText.Length, newText.Length);
-            while (commonPrefixLen < minLen && oldText[commonPrefixLen] == newText[commonPrefixLen])
-            {
-                commonPrefixLen++;
-            }
-
-            int backspaceCount = oldText.Length - commonPrefixLen;
-            string textToInsert = newText.Substring(commonPrefixLen);
-
-            if (backspaceCount == 0 && string.IsNullOrEmpty(textToInsert)) return;
-
-            // Pack both backspaces AND new Unicode characters into a SINGLE atomic SendInput batch!
-            // No sleep in between! The OS kernel delivers the batch atomically, completely eliminating flicker/blink!
-            int totalInputs = (backspaceCount * 2) + (textToInsert.Length * 2);
-            INPUT[] inputs = new INPUT[totalInputs];
-            int idx = 0;
-
-            // 1. Backspaces for the suffix that changed
-            for (int i = 0; i < backspaceCount; i++)
-            {
-                inputs[idx++] = new INPUT
-                {
-                    type = 1,
-                    U = new InputUnion
-                    {
-                        ki = new KEYBDINPUT
-                        {
-                            wVk = 0x08, // VK_BACK
-                            wScan = 0x0E, // Hardware scan code for Backspace
-                            dwFlags = 0,
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
-                        }
-                    }
-                };
-                inputs[idx++] = new INPUT
-                {
-                    type = 1,
-                    U = new InputUnion
-                    {
-                        ki = new KEYBDINPUT
-                        {
-                            wVk = 0x08, // VK_BACK
-                            wScan = 0x0E,
-                            dwFlags = 0x0002, // KEYEVENTF_KEYUP
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
-                        }
-                    }
-                };
-            }
-
-            // 2. New Unicode characters to insert
-            for (int i = 0; i < textToInsert.Length; i++)
-            {
-                char c = textToInsert[i];
-                inputs[idx++] = new INPUT
-                {
-                    type = 1,
-                    U = new InputUnion
-                    {
-                        ki = new KEYBDINPUT
-                        {
-                            wVk = 0,
-                            wScan = (ushort)c,
-                            dwFlags = 0x0004, // KEYEVENTF_UNICODE
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
-                        }
-                    }
-                };
-                inputs[idx++] = new INPUT
-                {
-                    type = 1,
-                    U = new InputUnion
-                    {
-                        ki = new KEYBDINPUT
-                        {
-                            wVk = 0,
-                            wScan = (ushort)c,
-                            dwFlags = 0x0004 | 0x0002, // KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
-                        }
-                    }
-                };
-            }
-
-            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
-            if (sent == 0)
-            {
-                for (int i = 0; i < backspaceCount; i++)
-                {
-                    keybd_event(0x08, 0x0E, 0, MAGIC_COOKIE);
-                    keybd_event(0x08, 0x0E, 2, MAGIC_COOKIE);
-                }
-                foreach (char c in textToInsert)
-                {
-                    keybd_event(0, (byte)c, 0x0004, MAGIC_COOKIE);
-                    keybd_event(0, (byte)c, 0x0004 | 0x0002, MAGIC_COOKIE);
-                }
-            }
+            int bsCount = !string.IsNullOrEmpty(oldText) ? oldText.Length : 0;
+            ReplaceComposedText(bsCount, newText);
         }
 
         public static void ReplaceComposedText(int backspaceCount, string newText)
         {
             if (backspaceCount == 0 && string.IsNullOrEmpty(newText)) return;
-            int totalInputs = (backspaceCount * 2) + ((newText != null ? newText.Length : 0) * 2);
-            INPUT[] inputs = new INPUT[totalInputs];
-            int idx = 0;
 
-            for (int i = 0; i < backspaceCount; i++)
+            // 1. Send Backspaces to clear previous composed cluster
+            if (backspaceCount > 0)
             {
-                inputs[idx++] = new INPUT
+                INPUT[] bsInputs = new INPUT[backspaceCount * 2];
+                int bsIdx = 0;
+                for (int i = 0; i < backspaceCount; i++)
                 {
-                    type = 1,
-                    U = new InputUnion
+                    bsInputs[bsIdx++] = new INPUT
                     {
-                        ki = new KEYBDINPUT
+                        type = 1,
+                        U = new InputUnion
                         {
-                            wVk = 0x08,
-                            wScan = 0x0E,
-                            dwFlags = 0,
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
+                            ki = new KEYBDINPUT
+                            {
+                                wVk = 0x08, // VK_BACK
+                                wScan = 0x0E,
+                                dwFlags = 0,
+                                time = 0,
+                                dwExtraInfo = MAGIC_COOKIE
+                            }
                         }
-                    }
-                };
-                inputs[idx++] = new INPUT
+                    };
+                    bsInputs[bsIdx++] = new INPUT
+                    {
+                        type = 1,
+                        U = new InputUnion
+                        {
+                            ki = new KEYBDINPUT
+                            {
+                                wVk = 0x08, // VK_BACK
+                                wScan = 0x0E,
+                                dwFlags = 0x0002, // KEYEVENTF_KEYUP
+                                time = 0,
+                                dwExtraInfo = MAGIC_COOKIE
+                            }
+                        }
+                    };
+                }
+
+                uint bsSent = SendInput((uint)bsInputs.Length, bsInputs, Marshal.SizeOf(typeof(INPUT)));
+                if (bsSent == 0)
                 {
-                    type = 1,
-                    U = new InputUnion
+                    for (int i = 0; i < backspaceCount; i++)
                     {
-                        ki = new KEYBDINPUT
-                        {
-                            wVk = 0x08,
-                            wScan = 0x0E,
-                            dwFlags = 0x0002,
-                            time = 0,
-                            dwExtraInfo = MAGIC_COOKIE
-                        }
+                        keybd_event(0x08, 0x0E, 0, MAGIC_COOKIE);
+                        keybd_event(0x08, 0x0E, 2, MAGIC_COOKIE);
                     }
-                };
+                }
+
+                // Micro yield (2ms) guarantees active application (Notepad, Word, browsers, etc.)
+                // completes deleting previous characters before new replacement characters arrive!
+                if (!string.IsNullOrEmpty(newText))
+                {
+                    System.Threading.Thread.Sleep(2);
+                }
             }
 
+            // 2. Send New Transliterated Unicode Characters
             if (!string.IsNullOrEmpty(newText))
             {
+                INPUT[] textInputs = new INPUT[newText.Length * 2];
+                int tIdx = 0;
                 for (int i = 0; i < newText.Length; i++)
                 {
                     char c = newText[i];
-                    inputs[idx++] = new INPUT
+                    textInputs[tIdx++] = new INPUT
                     {
                         type = 1,
                         U = new InputUnion
@@ -635,13 +561,13 @@ namespace Banglish.Core
                             {
                                 wVk = 0,
                                 wScan = (ushort)c,
-                                dwFlags = 0x0004,
+                                dwFlags = 0x0004, // KEYEVENTF_UNICODE
                                 time = 0,
                                 dwExtraInfo = MAGIC_COOKIE
                             }
                         }
                     };
-                    inputs[idx++] = new INPUT
+                    textInputs[tIdx++] = new INPUT
                     {
                         type = 1,
                         U = new InputUnion
@@ -650,24 +576,16 @@ namespace Banglish.Core
                             {
                                 wVk = 0,
                                 wScan = (ushort)c,
-                                dwFlags = 0x0004 | 0x0002,
+                                dwFlags = 0x0004 | 0x0002, // KEYEVENTF_UNICODE | KEYEVENTF_KEYUP
                                 time = 0,
                                 dwExtraInfo = MAGIC_COOKIE
                             }
                         }
                     };
                 }
-            }
 
-            uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
-            if (sent == 0)
-            {
-                for (int i = 0; i < backspaceCount; i++)
-                {
-                    keybd_event(0x08, 0x0E, 0, MAGIC_COOKIE);
-                    keybd_event(0x08, 0x0E, 2, MAGIC_COOKIE);
-                }
-                if (!string.IsNullOrEmpty(newText))
+                uint tSent = SendInput((uint)textInputs.Length, textInputs, Marshal.SizeOf(typeof(INPUT)));
+                if (tSent == 0)
                 {
                     foreach (char c in newText)
                     {
