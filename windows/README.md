@@ -36,7 +36,7 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 
 ### Or direct C# compiler command:
 ```cmd
-C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:winexe /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\AvroData.cs src\BanglishEngine.cs src\KeyboardHook.cs src\CandidateForm.cs src\TrayApp.cs
+C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe /nologo /target:winexe /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\BanglishData.cs src\BanglishEngine.cs src\KeyboardHook.cs src\CandidateForm.cs src\TrayApp.cs
 ```
 
 ---

@@ -14,9 +14,9 @@ namespace Banglish.Core
 
         public BanglishEngine()
         {
-            _vowels = new HashSet<char>(AvroData.Vowels);
-            _consonants = new HashSet<char>(AvroData.Consonants);
-            _caseSensitive = new HashSet<char>(AvroData.CaseSensitive);
+            _vowels = new HashSet<char>(BanglishData.Vowels);
+            _consonants = new HashSet<char>(BanglishData.Consonants);
+            _caseSensitive = new HashSet<char>(BanglishData.CaseSensitive);
         }
 
         private string FixString(string input)
@@ -90,7 +90,7 @@ namespace Banglish.Core
                 int prev = start - 1;
                 bool matched = false;
 
-                foreach (var pattern in AvroData.Patterns)
+                foreach (var pattern in BanglishData.Patterns)
                 {
                     string pFind = pattern.Find;
                     int pFindLen = pFind.Length;

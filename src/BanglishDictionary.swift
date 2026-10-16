@@ -98,7 +98,50 @@ public final class BanglishDictionary {
         "shobcheye": "সবচেয়ে",
         "sobcheye": "সবচেয়ে",
         "nirapod": "নিরাপদ",
-        "durotto": "দূরত্ব"
+        "durotto": "দূরত্ব",
+        "know": "জ্ঞান",
+        "knows": "জ্ঞান",
+        "knowledge": "জ্ঞান",
+        "gean": "জ্ঞান",
+        "geyan": "জ্ঞান",
+        "gyan": "জ্ঞান",
+        "ggan": "জ্ঞান",
+        "jnan": "জ্ঞান",
+        "geani": "জ্ঞানী",
+        "gyani": "জ্ঞানী",
+        "ggani": "জ্ঞানী",
+        "jnani": "জ্ঞানী",
+        "bijnan": "বিজ্ঞান",
+        "bignan": "বিজ্ঞান",
+        "bigyan": "বিজ্ঞান",
+        "biggan": "বিজ্ঞান",
+        "bijnani": "বিজ্ঞানী",
+        "bignani": "বিজ্ঞানী",
+        "bigyani": "বিজ্ঞানী",
+        "biggani": "বিজ্ঞানী",
+        "oggan": "অজ্ঞান",
+        "agyan": "অজ্ঞান",
+        "ogyan": "অজ্ঞান",
+        "aggata": "অজ্ঞতা",
+        "agyata": "অজ্ঞতা",
+        "ogyata": "অজ্ঞতা",
+        "oggyata": "অজ্ঞতা",
+        "bishesoggo": "বিশেষজ্ঞ",
+        "bishesoggyo": "বিশেষজ্ঞ",
+        "kritoggo": "কৃতজ্ঞ",
+        "kritoggyo": "কৃতজ্ঞ",
+        "kritoggota": "কৃতজ্ঞতা",
+        "kritoggyota": "কৃতজ্ঞতা",
+        "protigga": "প্রতিজ্ঞা",
+        "protiggya": "প্রতিজ্ঞা",
+        "biggapon": "বিজ্ঞাপন",
+        "bigyapon": "বিজ্ঞাপন",
+        "bignapon": "বিজ্ঞাপন",
+        "bijnapon": "বিজ্ঞাপন",
+        "songga": "সংজ্ঞা",
+        "songgya": "সংজ্ঞা",
+        "joggo": "যজ্ঞ",
+        "joggyo": "যজ্ঞ",
     ]
 
     private init() {
@@ -479,7 +522,19 @@ public final class BanglishDictionary {
             if w.contains("লাঙ্ক") { variants.insert(w.replacingOccurrences(of: "লাঙ্ক", with: "লিংক")) }
             if w.contains("লাংক") { variants.insert(w.replacingOccurrences(of: "লাংক", with: "লিংক")) }
             if w.contains("জ্ঞ") { variants.insert(w.replacingOccurrences(of: "জ্ঞ", with: "গ্য")) }
+            if w.contains("গ্য") { variants.insert(w.replacingOccurrences(of: "গ্য", with: "জ্ঞ")) }
+            if w.contains("গ্যা") { variants.insert(w.replacingOccurrences(of: "গ্যা", with: "জ্ঞা")) }
+            if w.contains("গেয়া") { variants.insert(w.replacingOccurrences(of: "গেয়া", with: "জ্ঞা")) }
+            if w.contains("গেয়") { variants.insert(w.replacingOccurrences(of: "গেয়", with: "জ্ঞ")) }
+            if w.contains("জনান") { variants.insert(w.replacingOccurrences(of: "জনান", with: "জ্ঞান")) }
+            if w.contains("বিজনান") { variants.insert(w.replacingOccurrences(of: "বিজনান", with: "বিজ্ঞান")) }
+            if w.contains("বিগ্নান") { variants.insert(w.replacingOccurrences(of: "বিগ্নান", with: "বিজ্ঞান")) }
+            if w.contains("বিগ্যান") { variants.insert(w.replacingOccurrences(of: "বিগ্যান", with: "বিজ্ঞান")) }
+            if w.contains("বিজন") { variants.insert(w.replacingOccurrences(of: "বিজন", with: "বিজ্ঞ")) }
+            if w.contains("বিগ্ন") { variants.insert(w.replacingOccurrences(of: "বিগ্ন", with: "বিজ্ঞ")) }
+            if w.contains("বিগ্য") { variants.insert(w.replacingOccurrences(of: "বিগ্য", with: "বিজ্ঞ")) }
             if w.contains("ক্ষ") { variants.insert(w.replacingOccurrences(of: "ক্ষ", with: "খ")) }
+            if w.contains("খ") { variants.insert(w.replacingOccurrences(of: "খ", with: "ক্ষ")) }
         }
 
         // Rule P: Y, Ja-fola (্য), Antostho-A (য়), Vowel (আই/ই) & W/War (ওয়্যার) variants
@@ -582,21 +637,6 @@ public final class BanglishDictionary {
         }
 
         // Rule L: Comprehensive Chandrabindu (চন্দ্রবিন্দু ঁ) Suggestions
-        let vowelSigns: Set<UInt32> = [
-            0x09BE, // া
-            0x09BF, // ি
-            0x09C0, // ী
-            0x09C1, // ু
-            0x09C2, // ূ
-            0x09C3, // ৃ
-            0x09C7, // ে
-            0x09C8, // ৈ
-            0x09CB, // ো
-            0x09CC  // ৌ
-        ]
-        let independentVowels: Set<UInt32> = [
-            0x0985, 0x0986, 0x0987, 0x0988, 0x0989, 0x098A, 0x098B, 0x098F, 0x0990, 0x0993, 0x0994
-        ]
         let nasalReplacements = [
             "ন্দ": "ঁদ",
             "ন্ত": "ঁত",

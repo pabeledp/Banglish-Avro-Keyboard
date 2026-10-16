@@ -31,7 +31,7 @@ mkdir -p "${BUILD_DIR}/ModuleCache"
     -module-cache-path "${BUILD_DIR}/ModuleCache" \
     -framework Cocoa \
     -framework InputMethodKit \
-    "${PROJECT_DIR}/src/AvroData.swift" \
+    "${PROJECT_DIR}/src/BanglishData.swift" \
     "${PROJECT_DIR}/src/BanglishEngine.swift" \
     "${PROJECT_DIR}/src/BanglishDictionary.swift" \
     "${PROJECT_DIR}/src/CandidateWindow.swift" \

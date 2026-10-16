@@ -1,14 +1,14 @@
 import Foundation
 
-/// Official Avro Phonetic Transliteration Engine in Swift
+/// Banglish Phonetic Transliteration Engine in Swift
 public final class BanglishEngine {
     public static let shared = BanglishEngine()
 
     public init() {}
 
-    private let vowels = Set(AvroData.vowels.map { String($0).lowercased() })
-    private let consonants = Set(AvroData.consonants.map { String($0).lowercased() })
-    private let caseSensitive = Set(AvroData.caseSensitive.map { String($0).lowercased() })
+    private let vowels = Set(BanglishData.vowels.map { String($0).lowercased() })
+    private let consonants = Set(BanglishData.consonants.map { String($0).lowercased() })
+    private let caseSensitive = Set(BanglishData.caseSensitive.map { String($0).lowercased() })
 
     private func fixString(_ input: String) -> String {
         var fixed = ""
@@ -64,7 +64,7 @@ public final class BanglishEngine {
             let prev = start - 1
             var matched = false
 
-            for pattern in AvroData.patterns {
+            for pattern in BanglishData.patterns {
                 let pFind = pattern.find
                 let pFindLen = pFind.count
                 let end = cur + pFindLen

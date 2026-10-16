@@ -11,7 +11,7 @@ if not exist "%CSC%" (
 )
 
 echo Compiling C# source files...
-"%CSC%" /nologo /target:winexe /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\AvroData.cs src\BanglishEngine.cs src\KeyboardHook.cs src\CandidateForm.cs src\TrayApp.cs
+"%CSC%" /nologo /target:winexe /out:Banglish.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\BanglishData.cs src\BanglishEngine.cs src\KeyboardHook.cs src\CandidateForm.cs src\TrayApp.cs
 
 if %ERRORLEVEL% EQU 0 (
     echo.
