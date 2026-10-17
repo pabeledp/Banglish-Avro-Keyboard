@@ -1,12 +1,24 @@
 import Cocoa
 import InputMethodKit
 
+public enum InputMode: Int {
+    case bangla = 0
+    case english = 1
+    case arabic = 2
+}
+
 @objc(BanglishInputController)
 class BanglishInputController: IMKInputController {
     private var buffer = ""
     private let engine = BanglishEngine.shared
     private static let emptyRange = NSRange(location: NSNotFound, length: 0)
-    public static var isBanglaMode = true
+    public static var currentMode: InputMode = .bangla
+    public static var lastNonEnglishMode: InputMode = .bangla
+
+    public static var isBanglaMode: Bool {
+        get { return currentMode == .bangla }
+        set { currentMode = newValue ? .bangla : .english }
+    }
     private weak var lastClient: (any IMKTextInput)?
 
     override init!(server: IMKServer!, delegate: Any!, client: Any!) {
@@ -77,7 +89,11 @@ class BanglishInputController: IMKInputController {
                     // Dedicated tap (released within 500ms without combination)
                     if !Self.fnUsedWithOtherKey && elapsed > 0.01 && elapsed < 0.6 {
                         if !buffer.isEmpty { commitBuffer(client: client) }
-                        BanglishInputController.isBanglaMode.toggle()
+                        if Self.currentMode == .english {
+                            Self.currentMode = Self.lastNonEnglishMode
+                        } else {
+                            Self.currentMode = .english
+                        }
                     }
                 }
             }
@@ -100,7 +116,11 @@ class BanglishInputController: IMKInputController {
         // Dedicated hardware Fn / Globe key (keycode 63) keyDown fallback
         if keyCode == 63 {
             if !buffer.isEmpty { commitBuffer(client: client) }
-            BanglishInputController.isBanglaMode.toggle()
+            if Self.currentMode == .english {
+                Self.currentMode = Self.lastNonEnglishMode
+            } else {
+                Self.currentMode = .english
+            }
             return true
         }
 
@@ -116,12 +136,29 @@ class BanglishInputController: IMKInputController {
                        (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
 
         // Universal Language Toggle Shortcuts:
-        // 1) Option + Space (⌥ + Space)
-        // 2) Control + Space (^ + Space - default macOS input source shortcut)
-        let isToggleShortcut = (isOption || isControl) && !isCommand && keyCode == 49
-        if isToggleShortcut {
+        // 1) Control + Option + Space (^ + ⌥ + Space) => Arabic <-> English
+        // 2) Option + Space (⌥ + Space) or Control + Space (^ + Space) => Bangla <-> English
+        let isArabicToggle = isControl && isOption && !isCommand && keyCode == 49
+        if isArabicToggle {
             if !buffer.isEmpty { commitBuffer(client: client) }
-            BanglishInputController.isBanglaMode.toggle()
+            if Self.currentMode == .arabic {
+                Self.currentMode = .english
+            } else {
+                Self.currentMode = .arabic
+                Self.lastNonEnglishMode = .arabic
+            }
+            return true
+        }
+
+        let isBanglaToggle = (isOption || isControl) && !isCommand && keyCode == 49
+        if isBanglaToggle {
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            if Self.currentMode == .bangla {
+                Self.currentMode = .english
+            } else {
+                Self.currentMode = .bangla
+                Self.lastNonEnglishMode = .bangla
+            }
             return true
         }
 
@@ -144,7 +181,7 @@ class BanglishInputController: IMKInputController {
             return false
         }
 
-        if !BanglishInputController.isBanglaMode {
+        if Self.currentMode == .english {
             return false
         }
 
@@ -171,7 +208,8 @@ class BanglishInputController: IMKInputController {
             91: 7, // Keypad 8
             92: 8  // Keypad 9
         ]
-        if CandidateWindow.shared.isCandidateWindowVisible,
+        if Self.currentMode == .bangla,
+           CandidateWindow.shared.isCandidateWindowVisible,
            !buffer.allSatisfy({ $0.isNumber }),
            !modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option), !modifiers.contains(.shift),
            let idx = numberKeyCodes[keyCode],
@@ -328,6 +366,9 @@ class BanglishInputController: IMKInputController {
         let converted: String
         if let custom = customText {
             converted = custom
+        } else if Self.currentMode == .arabic {
+            let candidates = ArabicDictionary.shared.candidates(for: buffer)
+            converted = candidates.first ?? ArabicEngine.shared.transliterate(buffer)
         } else if buffer == "." {
             converted = "।"
         } else {
@@ -367,13 +408,17 @@ class BanglishInputController: IMKInputController {
             return
         }
 
-        // Pure numbers (e.g. 1, 12, 1234567890) should never show floating candidate window
-        if buffer.allSatisfy({ $0.isNumber }) {
-            CandidateWindow.shared.hide()
-            return
+        let candidates: [String]
+        if Self.currentMode == .arabic {
+            candidates = ArabicDictionary.shared.candidates(for: buffer)
+        } else {
+            // Pure numbers should never show floating candidate window in Bangla
+            if buffer.allSatisfy({ $0.isNumber }) {
+                CandidateWindow.shared.hide()
+                return
+            }
+            candidates = BanglishDictionary.shared.candidates(for: buffer)
         }
-
-        let candidates = BanglishDictionary.shared.candidates(for: buffer)
         guard !candidates.isEmpty else {
             CandidateWindow.shared.hide()
             return
@@ -440,7 +485,12 @@ class BanglishInputController: IMKInputController {
 
     private func commitBuffer(client: any IMKTextInput) {
         guard !buffer.isEmpty else { return }
-        let fallback = (buffer == ".") ? "।" : engine.transliterate(buffer)
+        let fallback: String
+        if Self.currentMode == .arabic {
+            fallback = ArabicEngine.shared.transliterate(buffer)
+        } else {
+            fallback = (buffer == ".") ? "।" : engine.transliterate(buffer)
+        }
         let textToCommit = CandidateWindow.shared.selectedCandidate() ?? fallback
         commitText(textToCommit, client: client)
     }
@@ -453,17 +503,42 @@ class BanglishInputController: IMKInputController {
         CandidateWindow.shared.hide()
     }
 
+    // MARK: - Multiple Input Source Registration (Banglish & Banglish AR)
+    override func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
+        if let modeStr = value as? String {
+            if modeStr.contains("Arabic") {
+                Self.currentMode = .arabic
+                Self.lastNonEnglishMode = .arabic
+            } else if modeStr.contains("Bangla") {
+                Self.currentMode = .bangla
+                Self.lastNonEnglishMode = .bangla
+            }
+        }
+        super.setValue(value, forTag: tag, client: sender)
+    }
+
     // MARK: - Menu Bar
     override func menu() -> NSMenu! {
         let menu = NSMenu()
-        let item1 = NSMenuItem(title: "🇧🇩 Banglish 1.0.001", action: nil, keyEquivalent: "")
+        let item1 = NSMenuItem(title: "🇧🇩 Banglish v1.0.002 (Beta)", action: nil, keyEquivalent: "")
         item1.isEnabled = false
         menu.addItem(item1)
         menu.addItem(NSMenuItem.separator())
 
-        let toggle = NSMenuItem(title: BanglishInputController.isBanglaMode ? "Switch to English (⌥ + Space)" : "Switch to Bangla (⌥ + Space)", action: #selector(toggleModeMenu), keyEquivalent: "")
-        toggle.target = self
-        menu.addItem(toggle)
+        let banglaItem = NSMenuItem(title: "বাংলা (Bangla) — ⌥ + Space", action: #selector(switchToBangla), keyEquivalent: "")
+        banglaItem.target = self
+        if Self.currentMode == .bangla { banglaItem.state = .on }
+        menu.addItem(banglaItem)
+
+        let arabicItem = NSMenuItem(title: "العربية (Banglish AR) — ⌃ + ⌥ + Space", action: #selector(switchToArabic), keyEquivalent: "")
+        arabicItem.target = self
+        if Self.currentMode == .arabic { arabicItem.state = .on }
+        menu.addItem(arabicItem)
+
+        let englishItem = NSMenuItem(title: "English", action: #selector(switchToEnglish), keyEquivalent: "")
+        englishItem.target = self
+        if Self.currentMode == .english { englishItem.state = .on }
+        menu.addItem(englishItem)
 
         menu.addItem(NSMenuItem.separator())
         let openSettings = NSMenuItem(title: "Open Banglish Dashboard...", action: #selector(openDashboard), keyEquivalent: "")
@@ -477,8 +552,18 @@ class BanglishInputController: IMKInputController {
         return menu
     }
 
-    @objc func toggleModeMenu() {
-        BanglishInputController.isBanglaMode.toggle()
+    @objc func switchToBangla() {
+        Self.currentMode = .bangla
+        Self.lastNonEnglishMode = .bangla
+    }
+
+    @objc func switchToArabic() {
+        Self.currentMode = .arabic
+        Self.lastNonEnglishMode = .arabic
+    }
+
+    @objc func switchToEnglish() {
+        Self.currentMode = .english
     }
 
     @objc func openDashboard() {
